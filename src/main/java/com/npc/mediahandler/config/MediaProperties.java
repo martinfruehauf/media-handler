@@ -40,6 +40,8 @@ public class MediaProperties {
 
     @Data
     public static class Retry {
+        /** Whether automatic retry of failed records is enabled. */
+        private boolean enabled = false;
         /** How often (ms) to scan for failed records and retry them. */
         private long intervalMs = 300_000;
         /** Maximum total attempts before a record is abandoned. */

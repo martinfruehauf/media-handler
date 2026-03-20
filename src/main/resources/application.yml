@@ -63,5 +63,6 @@ media:
     api-key: YOUR_TMDB_BEARER_TOKEN
     base-url: https://api.themoviedb.org/3
   retry:
+    enabled: false         # set to true to automatically retry failed records
     interval-ms: 300000   # retry failed records every 5 minutes
     max-attempts: 5        # give up after 5 total attempts

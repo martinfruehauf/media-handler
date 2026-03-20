@@ -26,6 +26,9 @@ public class RetryService {
 
     @Scheduled(fixedDelayString = "${media.retry.interval-ms:300000}")
     public void retryFailed() {
+        if (!properties.getRetry().isEnabled()) {
+            return;
+        }
         int maxAttempts = properties.getRetry().getMaxAttempts();
         List<MediaFileRecord> candidates = repository.findByStatusInAndRetryCountLessThan(RETRYABLE, maxAttempts);
 
