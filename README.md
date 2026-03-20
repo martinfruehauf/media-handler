@@ -4,6 +4,18 @@ A Spring Boot service that watches a source folder for new media files, parses t
 
 ---
 
+## Deploy on Proxmox (LXC)
+
+Run this on your Proxmox host — it will ask all configuration questions, create a Debian 12 LXC, and start the app as a systemd service:
+
+```bash
+bash <(curl -s https://raw.githubusercontent.com/martinfruehauf/media-handler/main/scripts/setup-lxc.sh)
+```
+
+After setup, open `http://<container-ip>:8080` and configure your TMDB API key and LLM URL in the Settings tab.
+
+---
+
 ## How it works
 
 ```

@@ -234,8 +234,9 @@ async function loadConfig() {
 }
 
 function applyConfig() {
-  setVal('cfg-source-folder', config['source.folder']);
-  setVal('cfg-target-folder', config['target.folder']);
+  setVal('cfg-source-folder',        config['source.folder']);
+  setVal('cfg-target-folder-movies', config['target.folder.movies']);
+  setVal('cfg-target-folder-shows',  config['target.folder.shows']);
   setVal('cfg-tmdb-api-key',  config['tmdb.api-key']);
   setVal('cfg-llm-api-key',   config['llm.api-key']);
   setVal('cfg-llm-base-url',  config['llm.base-url']);
@@ -269,8 +270,9 @@ async function deleteLogs() {
 
 async function saveSettings() {
   const payload = {
-    'source.folder':  getVal('cfg-source-folder'),
-    'target.folder':  getVal('cfg-target-folder'),
+    'source.folder':        getVal('cfg-source-folder'),
+    'target.folder.movies': getVal('cfg-target-folder-movies'),
+    'target.folder.shows':  getVal('cfg-target-folder-shows'),
     'tmdb.api-key':   getVal('cfg-tmdb-api-key'),
     'llm.provider':   config['llm.provider'] || 'openai',
     'llm.api-key':    getVal('cfg-llm-api-key'),
