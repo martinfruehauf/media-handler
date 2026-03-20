@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Spring AI Stream</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.5.0/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white p-10">
+<div class="max-w-2xl mx-auto border border-slate-700 rounded-lg p-6 bg-slate-800">
+    <div id="response" class="h-96 overflow-y-auto mb-4 p-4 bg-slate-900 rounded border border-slate-700 font-mono text-sm">
+    </div>
+    <input id="msg" class="w-full p-3 bg-slate-700 rounded outline-none border border-transparent focus:border-blue-500" placeholder="Ask Claude something...">
+    <button onclick="send()" class="mt-3 w-full bg-blue-600 hover:bg-blue-500 py-2 rounded font-bold">Stream Message</button>
+</div>
+
+<script>
+    let stompClient = null;
+
+    function connect() {
+        const socket = new SockJS('/chat-socket');
+        stompClient = Stomp.over(socket);
+        stompClient.connect({}, () => {
+            stompClient.subscribe('/topic/replies', (sdkEvent) => {
+                // Append the token without a newline to create the typing effect
+                document.getElementById('response').innerText += sdkEvent.body;
+            });
+        });
+    }
+
+    function send() {
+        const msg = document.getElementById('msg').value;
+        document.getElementById('response').innerText += "\n\nYOU: " + msg + "\nCLAUDE: ";
+        stompClient.send("/app/message", {}, msg);
+        document.getElementById('msg').value = '';
+    }
+
+    connect();
+</script>
+</body>
+</html>
