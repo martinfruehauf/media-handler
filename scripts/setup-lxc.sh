@@ -97,8 +97,9 @@ prompt_optional DNS_SEARCH "DNS search domain"
 
 # ── app-specific ──────────────────────────────────────────────────────────────
 echo
-prompt SOURCE_FOLDER "Source folder on host (e.g. /mnt/media/downloads)" ""
-prompt TARGET_FOLDER "Target folder on host (e.g. /mnt/media/library)"   ""
+prompt SOURCE_FOLDER        "Source folder on host (e.g. /mnt/media/downloads)"  ""
+prompt TARGET_FOLDER_MOVIES "Target folder for movies on host (e.g. /mnt/media/movies)" ""
+prompt TARGET_FOLDER_SHOWS  "Target folder for shows on host (e.g. /mnt/media/shows)"   ""
 
 # ── summary ───────────────────────────────────────────────────────────────────
 echo
@@ -116,7 +117,8 @@ echo    "  IPv6:        $( [[ "$DISABLE_IPV6" == "Y" ]] && echo "disabled" || ec
 [[ -n "$MTU"        ]] && echo "  MTU:         $MTU"
 echo    "  SSH access:  $( [[ "$SSH_ACCESS" == "Y" ]] && echo "yes" || echo "no" )"
 echo    "  Source:      $SOURCE_FOLDER → /mnt/source"
-echo    "  Target:      $TARGET_FOLDER → /mnt/target"
+echo    "  Movies:      $TARGET_FOLDER_MOVIES → /mnt/movies"
+echo    "  Shows:       $TARGET_FOLDER_SHOWS → /mnt/shows"
 echo
 read -rp "   Proceed? [Y/n]: " confirm
 [[ "${confirm:-Y}" =~ ^[Nn] ]] && { echo "Aborted."; exit 0; }
@@ -163,10 +165,11 @@ msg_info "Creating container $CTID"
 pct create "${PCT_ARGS[@]}" >/dev/null
 msg_ok "Container created"
 
-mkdir -p "$SOURCE_FOLDER" "$TARGET_FOLDER"
+mkdir -p "$SOURCE_FOLDER" "$TARGET_FOLDER_MOVIES" "$TARGET_FOLDER_SHOWS"
 pct set "$CTID" \
   --mp0 "${SOURCE_FOLDER},mp=/mnt/source" \
-  --mp1 "${TARGET_FOLDER},mp=/mnt/target"
+  --mp1 "${TARGET_FOLDER_MOVIES},mp=/mnt/movies" \
+  --mp2 "${TARGET_FOLDER_SHOWS},mp=/mnt/shows"
 msg_ok "Bind mounts configured"
 
 msg_info "Starting container"
@@ -181,7 +184,8 @@ pct exec "$CTID" -- chmod +x /tmp/install.sh
 msg_ok "Running installer"
 pct exec "$CTID" -- bash /tmp/install.sh \
   --source /mnt/source \
-  --target /mnt/target \
+  --target-movies /mnt/movies \
+  --target-shows /mnt/shows \
   --github-repo martinfruehauf/media-handler
 
 # ── done ─────────────────────────────────────────────────────────────────────

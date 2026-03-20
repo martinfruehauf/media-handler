@@ -13,8 +13,11 @@ public class MediaProperties {
     /** Folder that is scanned for new media files. */
     private String sourceFolder;
 
-    /** Root folder where renamed files will be moved to. */
-    private String targetFolder;
+    /** Root folder where renamed movie files will be moved to. */
+    private String targetFolderMovies;
+
+    /** Root folder where renamed TV show files will be moved to. */
+    private String targetFolderShows;
 
     /** File extensions (without dot) to consider as media files. */
     private List<String> fileExtensions = List.of("mkv", "mp4", "avi", "m4v", "mov", "wmv");

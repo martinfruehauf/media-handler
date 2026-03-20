@@ -28,16 +28,17 @@ public class FileRenameService {
     private final MediaProperties properties;
 
     public Path process(Path source, MediaMetadata metadata, TmdbResult tmdbResult) throws IOException {
-        Path targetFolder = Paths.get(configService.getOrDefault(
-                AppConfigService.TARGET_FOLDER, properties.getTargetFolder()));
-
         String ext = FilenameUtils.getExtension(source.getFileName().toString());
         Path targetFile;
 
         if (metadata.isMovie()) {
+            Path targetFolder = Paths.get(configService.getOrDefault(
+                    AppConfigService.TARGET_FOLDER_MOVIES, properties.getTargetFolderMovies()));
             targetFile = targetFolder.resolve(
                     "%s (%s).%s".formatted(tmdbResult.name(), tmdbResult.year(), ext));
         } else {
+            Path targetFolder = Paths.get(configService.getOrDefault(
+                    AppConfigService.TARGET_FOLDER_SHOWS, properties.getTargetFolderShows()));
             String seasonPadded = StringUtils.leftPad(
                     StringUtils.removeStartIgnoreCase(metadata.season(), "S"), 2, '0');
             Path seasonPath = targetFolder

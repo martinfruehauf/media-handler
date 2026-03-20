@@ -22,8 +22,9 @@ public class AppConfigService {
     @Value("${spring.ai.openai.chat.options.model:qwen2.5:14b}")
     private String openAiModel;
 
-    public static final String SOURCE_FOLDER   = "source.folder";
-    public static final String TARGET_FOLDER   = "target.folder";
+    public static final String SOURCE_FOLDER          = "source.folder";
+    public static final String TARGET_FOLDER_MOVIES   = "target.folder.movies";
+    public static final String TARGET_FOLDER_SHOWS    = "target.folder.shows";
     public static final String TMDB_API_KEY    = "tmdb.api-key";
     public static final String TMDB_BASE_URL   = "tmdb.base-url";
     public static final String LLM_PROVIDER    = "llm.provider";   // "openai" | "anthropic"
@@ -36,8 +37,9 @@ public class AppConfigService {
 
     @PostConstruct
     void seed() {
-        setIfAbsent(SOURCE_FOLDER, properties.getSourceFolder());
-        setIfAbsent(TARGET_FOLDER, properties.getTargetFolder());
+        setIfAbsent(SOURCE_FOLDER,        properties.getSourceFolder());
+        setIfAbsent(TARGET_FOLDER_MOVIES, properties.getTargetFolderMovies());
+        setIfAbsent(TARGET_FOLDER_SHOWS,  properties.getTargetFolderShows());
         setIfAbsent(TMDB_API_KEY,  properties.getTmdb().getApiKey());
         setIfAbsent(TMDB_BASE_URL, properties.getTmdb().getBaseUrl());
         setIfAbsent(LLM_PROVIDER,  "openai");
