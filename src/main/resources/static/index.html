@@ -155,6 +155,20 @@
       </div>
     </div>
 
+    <div class="card">
+      <div class="card-title">Display</div>
+      <div class="settings-grid">
+        <div class="field">
+          <label>Date Format</label>
+          <select id="cfg-date-format" onchange="setDateFormat(this.value)">
+            <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+            <option value="DD.MM.YYYY">DD.MM.YYYY</option>
+            <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
     <button class="save-btn" onclick="saveSettings()">Save Settings</button>
 
   </div>

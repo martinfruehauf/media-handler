@@ -7,6 +7,7 @@ let openDetailId = null;
 let config = {};
 let currentPage = 0;
 let pageSize = 10;
+let dateFormat = localStorage.getItem('dateFormat') || 'YYYY-MM-DD';
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -23,7 +24,7 @@ function switchTab(name) {
   document.getElementById('tab-' + name).classList.add('active');
   document.getElementById('nav-' + name).classList.add('active');
 
-  if (name === 'settings') loadConfig();
+  if (name === 'settings') { loadConfig(); document.getElementById('cfg-date-format').value = dateFormat; }
 }
 
 // ── Source Folder ─────────────────────────────────────────────────────────────
@@ -307,14 +308,31 @@ function esc(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function applyDateFormat(d) {
+  const pad = n => String(n).padStart(2, '0');
+  return dateFormat
+    .replace('YYYY', d.getFullYear())
+    .replace('MM',   pad(d.getMonth() + 1))
+    .replace('DD',   pad(d.getDate()));
+}
+
 function fmtDate(iso) {
   if (!iso) return null;
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return applyDateFormat(new Date(iso));
 }
 
 function fmtDateFull(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString();
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2, '0');
+  return `${applyDateFormat(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function setDateFormat(fmt) {
+  dateFormat = fmt;
+  localStorage.setItem('dateFormat', fmt);
+  renderTable();
+  renderStats();
 }
 
 function getVal(id) { return document.getElementById(id)?.value || ''; }
