@@ -36,6 +36,16 @@ public class MediaProperties {
         private String baseUrl = "https://api.themoviedb.org/3";
     }
 
+    private Llm llm = new Llm();
+
+    @Data
+    public static class Llm {
+        private String provider = "openai";
+        private String apiKey = "ollama";
+        private String baseUrl = "http://localhost:11434";
+        private String model = "qwen2.5:14b";
+    }
+
     private Retry retry = new Retry();
 
     @Data

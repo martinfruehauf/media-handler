@@ -1,0 +1,62 @@
+package com.npc.mediahandler.config;
+
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import org.springframework.stereotype.Service;
+
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
+
+@Service
+@RequiredArgsConstructor
+public class AppConfigService {
+
+    public static final String SOURCE_FOLDER   = "source.folder";
+    public static final String TARGET_FOLDER   = "target.folder";
+    public static final String TMDB_API_KEY    = "tmdb.api-key";
+    public static final String TMDB_BASE_URL   = "tmdb.base-url";
+    public static final String LLM_PROVIDER    = "llm.provider";   // "openai" | "anthropic"
+    public static final String LLM_API_KEY     = "llm.api-key";
+    public static final String LLM_BASE_URL    = "llm.base-url";
+    public static final String LLM_MODEL       = "llm.model";
+
+    private final AppConfigRepository repository;
+    private final MediaProperties properties;
+
+    @PostConstruct
+    void seed() {
+        setIfAbsent(SOURCE_FOLDER, properties.getSourceFolder());
+        setIfAbsent(TARGET_FOLDER, properties.getTargetFolder());
+        setIfAbsent(TMDB_API_KEY,  properties.getTmdb().getApiKey());
+        setIfAbsent(TMDB_BASE_URL, properties.getTmdb().getBaseUrl());
+        setIfAbsent(LLM_PROVIDER,  properties.getLlm().getProvider());
+        setIfAbsent(LLM_API_KEY,   properties.getLlm().getApiKey());
+        setIfAbsent(LLM_BASE_URL,  properties.getLlm().getBaseUrl());
+        setIfAbsent(LLM_MODEL,     properties.getLlm().getModel());
+    }
+
+    public String get(String key) {
+        return repository.findById(key).map(AppConfig::getValue).orElse(null);
+    }
+
+    public String getOrDefault(String key, String defaultValue) {
+        String value = get(key);
+        return value != null ? value : defaultValue;
+    }
+
+    public void set(String key, String value) {
+        repository.save(new AppConfig(key, value));
+    }
+
+    public Map<String, String> getAll() {
+        return repository.findAll().stream()
+                .collect(Collectors.toMap(AppConfig::getKey, AppConfig::getValue));
+    }
+
+    private void setIfAbsent(String key, String value) {
+        if (value != null && !repository.existsById(key)) {
+            repository.save(new AppConfig(key, value));
+        }
+    }
+}

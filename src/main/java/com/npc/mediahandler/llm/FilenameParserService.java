@@ -1,12 +1,14 @@
 package com.npc.mediahandler.llm;
 
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 
 import com.npc.mediahandler.media.LlmResponseParser;
 import com.npc.mediahandler.media.MediaMetadata;
 
+import lombok.RequiredArgsConstructor;
+
 @Service
+@RequiredArgsConstructor
 public class FilenameParserService {
 
     static final String SYSTEM_PROMPT = """
@@ -62,16 +64,11 @@ public class FilenameParserService {
             error: Input does not appear to be a movie or TV show filename.
             """;
 
-    private final ChatClient chatClient;
+    private final DynamicChatClientProvider chatClientProvider;
     private final LlmResponseParser responseParser;
 
-    public FilenameParserService(ChatClient.Builder builder, LlmResponseParser responseParser) {
-        this.chatClient = builder.build();
-        this.responseParser = responseParser;
-    }
-
     public MediaMetadata parse(String filename) {
-        String response = chatClient.prompt()
+        String response = chatClientProvider.getChatClient().prompt()
                 .system(SYSTEM_PROMPT)
                 .user(filename)
                 .call()
