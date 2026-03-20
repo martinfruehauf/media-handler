@@ -10,7 +10,8 @@ let config = {};
 document.addEventListener('DOMContentLoaded', () => {
   switchTab('logs');
   loadRecords();
-  setInterval(loadRecords, 15_000);
+  loadSourceFiles();
+  setInterval(() => { loadRecords(); loadSourceFiles(); }, 15_000);
 });
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
@@ -21,6 +22,45 @@ function switchTab(name) {
   document.getElementById('nav-' + name).classList.add('active');
 
   if (name === 'settings') loadConfig();
+}
+
+// ── Source Folder ─────────────────────────────────────────────────────────────
+async function loadSourceFiles() {
+  try {
+    const res = await fetch('/api/source-files');
+    const files = await res.json();
+    renderSourceFiles(files);
+  } catch (e) {
+    console.error('Failed to load source files', e);
+  }
+}
+
+function renderSourceFiles(files) {
+  const grid = document.getElementById('source-grid');
+  if (files.length === 0) {
+    grid.innerHTML = '<div class="empty">No media files in source folder.</div>';
+    return;
+  }
+
+  grid.innerHTML = files.map(f => {
+    const hasFailed = f.status && f.status.endsWith('_FAILED');
+    const isPending = f.status === 'PENDING';
+    const cls = hasFailed ? 'has-error' : isPending ? 'is-pending' : 'is-new';
+    const onclick = hasFailed ? `toggleSourceError('${f.recordId}')` : '';
+    return `
+      <div class="source-row ${cls}" onclick="${onclick}" id="src-row-${f.recordId ?? f.filename}">
+        <span class="source-filename" title="${esc(f.path)}">${esc(f.filename)}</span>
+        ${badge(f.status)}
+        <span class="source-size">${fmtSize(f.sizeBytes)}</span>
+      </div>
+      ${hasFailed ? `<div class="source-error-detail" id="src-err-${f.recordId}">${esc(f.errorMessage || 'Unknown error')} &mdash; ${f.retryCount} attempt(s)</div>` : ''}
+    `;
+  }).join('');
+}
+
+function toggleSourceError(recordId) {
+  const el = document.getElementById('src-err-' + recordId);
+  if (el) el.classList.toggle('open');
 }
 
 // ── Logs ─────────────────────────────────────────────────────────────────────
@@ -198,6 +238,7 @@ async function saveSettings() {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function badge(status) {
+  if (!status) return `<span class="badge badge-warning">New</span>`;
   const map = {
     MOVED:       ['moved',   'Moved'],
     PENDING:     ['pending', 'Pending'],
@@ -207,6 +248,13 @@ function badge(status) {
   };
   const [cls, label] = map[status] || ['warning', status];
   return `<span class="badge badge-${cls}">${label}</span>`;
+}
+
+function fmtSize(bytes) {
+  if (bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
 }
 
 function esc(s) {
