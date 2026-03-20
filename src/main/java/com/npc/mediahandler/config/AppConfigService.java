@@ -3,6 +3,7 @@ package com.npc.mediahandler.config;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
@@ -11,6 +12,15 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class AppConfigService {
+
+    @Value("${spring.ai.openai.api-key:ollama}")
+    private String openAiApiKey;
+
+    @Value("${spring.ai.openai.base-url:http://localhost:11434}")
+    private String openAiBaseUrl;
+
+    @Value("${spring.ai.openai.chat.options.model:qwen2.5:14b}")
+    private String openAiModel;
 
     public static final String SOURCE_FOLDER   = "source.folder";
     public static final String TARGET_FOLDER   = "target.folder";
@@ -30,10 +40,10 @@ public class AppConfigService {
         setIfAbsent(TARGET_FOLDER, properties.getTargetFolder());
         setIfAbsent(TMDB_API_KEY,  properties.getTmdb().getApiKey());
         setIfAbsent(TMDB_BASE_URL, properties.getTmdb().getBaseUrl());
-        setIfAbsent(LLM_PROVIDER,  properties.getLlm().getProvider());
-        setIfAbsent(LLM_API_KEY,   properties.getLlm().getApiKey());
-        setIfAbsent(LLM_BASE_URL,  properties.getLlm().getBaseUrl());
-        setIfAbsent(LLM_MODEL,     properties.getLlm().getModel());
+        setIfAbsent(LLM_PROVIDER,  "openai");
+        setIfAbsent(LLM_API_KEY,   openAiApiKey);
+        setIfAbsent(LLM_BASE_URL,  openAiBaseUrl);
+        setIfAbsent(LLM_MODEL,     openAiModel);
     }
 
     public String get(String key) {
