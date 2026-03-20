@@ -1,5 +1,7 @@
 package com.npc.mediahandler.media;
 
+import org.apache.commons.lang3.StringUtils;
+
 public record MediaMetadata(
         String type,
         String name,
@@ -9,7 +11,7 @@ public record MediaMetadata(
         String error
 ) {
     public boolean isError() {
-        return error != null && !error.isBlank();
+        return StringUtils.isNotBlank(error);
     }
 
     public boolean isMovie() {
