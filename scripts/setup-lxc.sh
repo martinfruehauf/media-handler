@@ -36,9 +36,15 @@ prompt_optional() {
 
 prompt_secret() {
   local var="$1" msg="$2"
-  local val=""
-  while [[ -z "$val" ]]; do
-    read -rsp "   $msg (required): " val; echo
+  local val="" confirm=""
+  while true; do
+    while [[ -z "$val" ]]; do
+      read -rsp "   $msg: " val; echo
+    done
+    read -rsp "   Confirm $msg: " confirm; echo
+    [[ "$val" == "$confirm" ]] && break
+    echo "   Passwords do not match, try again."
+    val="" confirm=""
   done
   printf -v "$var" '%s' "$val"
 }
