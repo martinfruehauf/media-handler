@@ -91,6 +91,7 @@
 	</dependencyManagement>
 
 	<build>
+		<finalName>media-handler</finalName>
 		<plugins>
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
