@@ -373,6 +373,34 @@ tr.clickable:hover td { background: var(--surface2); }
 
 .section-title:first-child { margin-top: 0; }
 
+.icon-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color .15s, background .15s;
+  margin-left: auto;
+}
+.icon-btn:hover { color: var(--text); background: var(--surface2); }
+
+.refresh-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  display: none;
+}
+.refresh-spinner.spinning {
+  display: inline-block;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
 .source-grid {
   display: flex;
   flex-direction: column;

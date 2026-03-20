@@ -25,8 +25,10 @@ function switchTab(name) {
 }
 
 // ── Source Folder ─────────────────────────────────────────────────────────────
-async function loadSourceFiles() {
-  const grid = document.getElementById('source-grid');
+async function loadSourceFiles(manual = false) {
+  const grid    = document.getElementById('source-grid');
+  const spinner = document.getElementById('source-spinner');
+  spinner.classList.add('spinning');
   try {
     const res = await fetch('/api/source-files');
     if (!res.ok) {
@@ -38,6 +40,8 @@ async function loadSourceFiles() {
   } catch (e) {
     console.error('Failed to load source files', e);
     grid.innerHTML = '<div class="empty">Could not reach server.</div>';
+  } finally {
+    spinner.classList.remove('spinning');
   }
 }
 

@@ -26,7 +26,11 @@
   <!-- Logs tab -->
   <div class="tab" id="tab-logs">
 
-    <div class="section-title">Source Folder</div>
+    <div class="section-title">
+      Source Folder
+      <span class="refresh-spinner" id="source-spinner"></span>
+      <button class="icon-btn" onclick="loadSourceFiles(true)" title="Refresh">&#8635;</button>
+    </div>
     <div class="source-grid" id="source-grid">
       <div class="empty">Loading...</div>
     </div>
