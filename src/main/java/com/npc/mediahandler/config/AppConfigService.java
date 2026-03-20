@@ -54,9 +54,20 @@ public class AppConfigService {
                 .collect(Collectors.toMap(AppConfig::getConfigKey, AppConfig::getValue));
     }
 
+    private static final java.util.Set<String> PLACEHOLDERS = java.util.Set.of(
+            "YOUR_TMDB_BEARER_TOKEN", "ollama", "sk-ant-..."
+    );
+
     private void setIfAbsent(String key, String value) {
-        if (value != null && !repository.existsById(key)) {
-            repository.save(new AppConfig(key, value));  // configKey, value
+        if (value == null || PLACEHOLDERS.contains(value)) return;
+        if (!repository.existsById(key)) {
+            repository.save(new AppConfig(key, value));
+        } else {
+            // Overwrite if the stored value is still a placeholder
+            String stored = get(key);
+            if (PLACEHOLDERS.contains(stored)) {
+                repository.save(new AppConfig(key, value));
+            }
         }
     }
 }

@@ -27,6 +27,8 @@ spring:
       chat:
         options:
           model: qwen2.5:14b
+    retry:
+      max-attempts: 1   # disable Spring AI's built-in LLM retry — we handle retries ourselves
 
   application:
     name: media-handler

@@ -11,7 +11,9 @@ import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.http.client.ReactorClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClient;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import com.npc.mediahandler.config.AppConfigService;
@@ -45,12 +47,15 @@ public class DynamicChatClientProvider {
                     .build();
         } else {
             log.debug("Building OpenAI ChatClient with baseUrl={}, model={}", baseUrl, model);
+            HttpClient httpClient = HttpClient.create().responseTimeout(Duration.ofMinutes(15));
+            RestClient.Builder restClientBuilder = RestClient.builder()
+                    .requestFactory(new ReactorClientHttpRequestFactory(httpClient));
             WebClient.Builder webClientBuilder = WebClient.builder()
-                    .clientConnector(new ReactorClientHttpConnector(
-                            HttpClient.create().responseTimeout(Duration.ofMinutes(15))));
+                    .clientConnector(new ReactorClientHttpConnector(httpClient));
             OpenAiApi openAiApi = OpenAiApi.builder()
                     .baseUrl(baseUrl)
                     .apiKey(apiKey)
+                    .restClientBuilder(restClientBuilder)
                     .webClientBuilder(webClientBuilder)
                     .build();
             chatModel = OpenAiChatModel.builder()
