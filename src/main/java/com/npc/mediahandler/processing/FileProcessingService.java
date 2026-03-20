@@ -30,19 +30,13 @@ public class FileProcessingService {
     @EventListener
     public void onFileReady(FileReadyEvent event) {
         Path source = event.getFile();
-
-        // Reuse an existing record (e.g. after app restart) rather than creating a duplicate.
-        // Skip files already successfully moved.
-        MediaFileRecord record = repository.findBySourcePath(source.toString())
-                .filter(r -> r.getStatus() != MediaFileStatus.MOVED)
-                .orElseGet(() -> repository.save(MediaFileRecord.builder()
-                        .originalFilename(source.getFileName().toString())
-                        .sourcePath(source.toString())
-                        .status(MediaFileStatus.PENDING)
-                        .createdAt(Instant.now())
-                        .retryCount(0)
-                        .build()));
-
+        MediaFileRecord record = repository.save(MediaFileRecord.builder()
+                .originalFilename(source.getFileName().toString())
+                .sourcePath(source.toString())
+                .status(MediaFileStatus.PENDING)
+                .createdAt(Instant.now())
+                .retryCount(0)
+                .build());
         execute(record);
     }
 

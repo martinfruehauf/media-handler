@@ -5,12 +5,16 @@ let records = [];
 let activeFilter = 'ALL';
 let openDetailId = null;
 let config = {};
+let currentPage = 0;
+let pageSize = 10;
+let dateFormat = localStorage.getItem('dateFormat') || 'YYYY-MM-DD';
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   switchTab('logs');
   loadRecords();
-  setInterval(loadRecords, 15_000);
+  loadSourceFiles();
+  setInterval(() => { loadRecords(); loadSourceFiles(); }, 15_000);
 });
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
@@ -20,7 +24,56 @@ function switchTab(name) {
   document.getElementById('tab-' + name).classList.add('active');
   document.getElementById('nav-' + name).classList.add('active');
 
-  if (name === 'settings') loadConfig();
+  if (name === 'settings') { loadConfig(); document.getElementById('cfg-date-format').value = dateFormat; }
+}
+
+// ── Source Folder ─────────────────────────────────────────────────────────────
+async function loadSourceFiles(manual = false) {
+  const grid    = document.getElementById('source-grid');
+  const spinner = document.getElementById('source-spinner');
+  spinner.classList.add('spinning');
+  try {
+    const res = await fetch('/api/source-files');
+    if (!res.ok) {
+      grid.innerHTML = `<div class="empty">Error loading source folder (${res.status})</div>`;
+      return;
+    }
+    const files = await res.json();
+    renderSourceFiles(files);
+  } catch (e) {
+    console.error('Failed to load source files', e);
+    grid.innerHTML = '<div class="empty">Could not reach server.</div>';
+  } finally {
+    spinner.classList.remove('spinning');
+  }
+}
+
+function renderSourceFiles(files) {
+  const grid = document.getElementById('source-grid');
+  if (files.length === 0) {
+    grid.innerHTML = '<div class="empty">No media files in source folder.</div>';
+    return;
+  }
+
+  grid.innerHTML = files.map(f => {
+    const hasFailed = f.status && f.status.endsWith('_FAILED');
+    const isPending = f.status === 'PENDING';
+    const cls = hasFailed ? 'has-error' : isPending ? 'is-pending' : 'is-new';
+    const onclick = hasFailed ? `toggleSourceError('${f.recordId}')` : '';
+    return `
+      <div class="source-row ${cls}" onclick="${onclick}" id="src-row-${f.recordId ?? f.filename}">
+        <span class="source-filename" title="${esc(f.path)}">${esc(f.filename)}</span>
+        ${badge(f.status)}
+        <span class="source-size">${fmtSize(f.sizeBytes)}</span>
+      </div>
+      ${hasFailed ? `<div class="source-error-detail" id="src-err-${f.recordId}">${esc(f.errorMessage || 'Unknown error')} &mdash; ${f.retryCount} attempt(s)</div>` : ''}
+    `;
+  }).join('');
+}
+
+function toggleSourceError(recordId) {
+  const el = document.getElementById('src-err-' + recordId);
+  if (el) el.classList.toggle('open');
 }
 
 // ── Logs ─────────────────────────────────────────────────────────────────────
@@ -49,6 +102,7 @@ function renderStats() {
 
 function setFilter(f) {
   activeFilter = f;
+  currentPage = 0;
   document.querySelectorAll('.filter-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.filter === f);
   });
@@ -56,24 +110,48 @@ function setFilter(f) {
   renderTable();
 }
 
-function renderTable() {
-  const filtered = records.filter(r => {
+function setPageSize(val) {
+  pageSize = val === 'all' ? Infinity : parseInt(val);
+  currentPage = 0;
+  openDetailId = null;
+  renderTable();
+}
+
+function goPage(delta) {
+  const filtered = filteredRecords();
+  const totalPages = Math.ceil(filtered.length / pageSize);
+  currentPage = Math.max(0, Math.min(currentPage + delta, totalPages - 1));
+  openDetailId = null;
+  renderTable();
+}
+
+function filteredRecords() {
+  return records.filter(r => {
     if (activeFilter === 'ALL')     return true;
     if (activeFilter === 'SUCCESS') return r.status === 'MOVED';
     if (activeFilter === 'FAILED')  return r.status.endsWith('_FAILED');
     if (activeFilter === 'PENDING') return r.status === 'PENDING';
     return true;
   });
+}
 
+function renderTable() {
+  const filtered = filteredRecords();
   const tbody = document.getElementById('records-tbody');
 
   if (filtered.length === 0) {
     tbody.innerHTML = `<tr><td colspan="4" class="empty">No records found.</td></tr>`;
     document.getElementById('detail-panel').classList.remove('open');
+    document.getElementById('pagination').style.display = 'none';
     return;
   }
 
-  tbody.innerHTML = filtered.map(r => `
+  const isAll = pageSize === Infinity;
+  const totalPages = isAll ? 1 : Math.ceil(filtered.length / pageSize);
+  currentPage = Math.min(currentPage, totalPages - 1);
+  const page = isAll ? filtered : filtered.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+
+  tbody.innerHTML = page.map(r => `
     <tr class="clickable" onclick="toggleDetail(${r.id})" data-id="${r.id}">
       <td><span class="filename" title="${esc(r.originalFilename)}">${esc(r.originalFilename)}</span></td>
       <td>${badge(r.status)}</td>
@@ -83,6 +161,14 @@ function renderTable() {
   `).join('');
 
   if (openDetailId !== null) renderDetail(openDetailId);
+
+  // Pagination bar
+  const pag = document.getElementById('pagination');
+  pag.style.display = 'flex';
+  document.getElementById('pag-info').textContent =
+    isAll ? `${filtered.length} records` : `${currentPage + 1} / ${totalPages}  (${filtered.length} total)`;
+  document.getElementById('pag-prev').disabled = currentPage === 0 || isAll;
+  document.getElementById('pag-next').disabled = currentPage >= totalPages - 1 || isAll;
 }
 
 function toggleDetail(id) {
@@ -168,6 +254,19 @@ function selectProvider(p, save) {
   if (save) config['llm.provider'] = p;
 }
 
+async function deleteLogs() {
+  if (!confirm('Delete all processing logs? This cannot be undone.')) return;
+  try {
+    await fetch('/api/records', { method: 'DELETE' });
+    records = [];
+    renderStats();
+    renderTable();
+    toast('All logs deleted', 'success');
+  } catch (e) {
+    toast('Failed to delete logs', 'error');
+  }
+}
+
 async function saveSettings() {
   const payload = {
     'source.folder':  getVal('cfg-source-folder'),
@@ -198,6 +297,7 @@ async function saveSettings() {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function badge(status) {
+  if (!status) return `<span class="badge badge-warning">New</span>`;
   const map = {
     MOVED:       ['moved',   'Moved'],
     PENDING:     ['pending', 'Pending'],
@@ -209,19 +309,43 @@ function badge(status) {
   return `<span class="badge badge-${cls}">${label}</span>`;
 }
 
+function fmtSize(bytes) {
+  if (bytes === 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + units[i];
+}
+
 function esc(s) {
   if (!s) return '';
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function applyDateFormat(d) {
+  const pad = n => String(n).padStart(2, '0');
+  return dateFormat
+    .replace('YYYY', d.getFullYear())
+    .replace('MM',   pad(d.getMonth() + 1))
+    .replace('DD',   pad(d.getDate()));
+}
+
 function fmtDate(iso) {
   if (!iso) return null;
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return applyDateFormat(new Date(iso));
 }
 
 function fmtDateFull(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString();
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2, '0');
+  return `${applyDateFormat(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function setDateFormat(fmt) {
+  dateFormat = fmt;
+  localStorage.setItem('dateFormat', fmt);
+  renderTable();
+  renderStats();
 }
 
 function getVal(id) { return document.getElementById(id)?.value || ''; }

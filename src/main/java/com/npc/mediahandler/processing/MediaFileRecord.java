@@ -32,7 +32,7 @@ public class MediaFileRecord {
     @Column(nullable = false)
     private String originalFilename;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String sourcePath;
 
     private String targetPath;

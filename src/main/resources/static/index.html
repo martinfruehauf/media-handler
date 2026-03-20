@@ -26,6 +26,16 @@
   <!-- Logs tab -->
   <div class="tab" id="tab-logs">
 
+    <div class="section-title">
+      Source Folder
+      <span class="refresh-spinner" id="source-spinner"></span>
+      <button class="icon-btn" onclick="loadSourceFiles(true)" title="Refresh">&#8635;</button>
+    </div>
+    <div class="source-grid" id="source-grid">
+      <div class="empty">Loading...</div>
+    </div>
+
+    <div class="section-title">Processing History</div>
     <div class="stats">
       <div class="stat">
         <div class="stat-label">Total</div>
@@ -50,6 +60,17 @@
       <button class="filter-btn"        data-filter="SUCCESS" onclick="setFilter('SUCCESS')">Success</button>
       <button class="filter-btn"        data-filter="FAILED"  onclick="setFilter('FAILED')">Failed</button>
       <button class="filter-btn"        data-filter="PENDING" onclick="setFilter('PENDING')">Pending</button>
+      <div style="margin-left:auto; display:flex; align-items:center; gap:6px;">
+        <span style="font-size:12px;color:var(--muted)">Show</span>
+        <select class="page-size-select" onchange="setPageSize(this.value)">
+          <option value="10" selected>10</option>
+          <option value="20">20</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+          <option value="1000">1000</option>
+          <option value="all">All</option>
+        </select>
+      </div>
     </div>
 
     <div class="card" style="padding: 0;">
@@ -68,6 +89,12 @@
           </tbody>
         </table>
       </div>
+    </div>
+
+    <div class="pagination" id="pagination" style="display:none;">
+      <button class="pag-btn" id="pag-prev" onclick="goPage(-1)">&#8592; Prev</button>
+      <span class="pag-info" id="pag-info"></span>
+      <button class="pag-btn" id="pag-next" onclick="goPage(1)">Next &#8594;</button>
     </div>
 
     <div class="detail-panel" id="detail-panel"></div>
@@ -131,7 +158,22 @@
       </div>
     </div>
 
+    <div class="card">
+      <div class="card-title">Display</div>
+      <div class="settings-grid">
+        <div class="field">
+          <label>Date Format</label>
+          <select id="cfg-date-format" onchange="setDateFormat(this.value)">
+            <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+            <option value="DD.MM.YYYY">DD.MM.YYYY</option>
+            <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
     <button class="save-btn" onclick="saveSettings()">Save Settings</button>
+    <button class="delete-logs-btn" onclick="deleteLogs()">Delete All Logs</button>
 
   </div>
 

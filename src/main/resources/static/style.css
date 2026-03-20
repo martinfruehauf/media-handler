@@ -166,8 +166,11 @@ td {
   padding: 12px 12px;
   border-bottom: 1px solid var(--border);
   font-size: 13px;
-  vertical-align: middle;
+  vertical-align: top;
 }
+
+/* Status, dates — never wrap */
+td:nth-child(n+2) { white-space: nowrap; }
 
 tr:last-child td { border-bottom: none; }
 
@@ -177,10 +180,7 @@ tr.clickable:hover td { background: var(--surface2); }
 .filename {
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 12px;
-  max-width: 400px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-all;
 }
 
 /* ── Badges ── */
@@ -328,6 +328,21 @@ tr.clickable:hover td { background: var(--surface2); }
 
 .save-btn:hover { background: var(--accent-h); }
 
+.delete-logs-btn {
+  background: none;
+  border: 1px solid var(--error);
+  border-radius: 6px;
+  color: var(--error);
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 9px 20px;
+  margin-left: 10px;
+  transition: background .15s, color .15s;
+}
+.delete-logs-btn:hover { background: var(--error); color: #fff; }
+
 .toast {
   position: fixed;
   bottom: 24px;
@@ -354,8 +369,142 @@ tr.clickable:hover td { background: var(--surface2); }
   font-size: 13px;
 }
 
+/* ── Pagination ── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 12px 0;
+}
+
+.pag-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 5px 14px;
+  transition: border-color .15s;
+}
+.pag-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-h); }
+.pag-btn:disabled { opacity: .3; cursor: default; }
+
+.pag-info { font-size: 12px; color: var(--muted); min-width: 120px; text-align: center; }
+
+.page-size-select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 4px 8px;
+  outline: none;
+  cursor: pointer;
+}
+.page-size-select option { background: var(--surface2); }
+
 .tab { display: none; }
 .tab.active { display: block; }
+
+/* ── Source folder ── */
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+  margin-bottom: 12px;
+  margin-top: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.section-title:first-child { margin-top: 0; }
+
+.icon-btn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+  transition: color .15s, background .15s;
+  margin-left: auto;
+}
+.icon-btn:hover { color: var(--text); background: var(--surface2); }
+
+.refresh-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  display: none;
+}
+.refresh-spinner.spinning {
+  display: inline-block;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.source-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.source-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 14px;
+  cursor: default;
+}
+
+.source-row.has-error { border-left: 3px solid var(--error); cursor: pointer; }
+.source-row.has-error:hover { background: var(--surface2); }
+.source-row.is-pending { border-left: 3px solid var(--pending); }
+.source-row.is-new { border-left: 3px solid var(--muted); }
+
+.source-filename {
+  flex: 1;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-size {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.source-error-detail {
+  display: none;
+  background: var(--surface2);
+  border: 1px solid var(--error);
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-top: -2px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--error);
+}
+
+.source-error-detail.open { display: block; }
 
 @media (max-width: 700px) {
   .stats { grid-template-columns: repeat(2, 1fr); }

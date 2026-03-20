@@ -1,6 +1,6 @@
 # Media Handler
 
-A Spring Boot service that watches a source folder for new media files, parses their filenames using a local LLM, looks up canonical metadata on TMDB, then renames and moves them into a clean folder structure.
+A Spring Boot service that watches a source folder for new media files, parses their filenames using an LLM, looks up canonical metadata on TMDB, then renames and moves them into a clean folder structure.
 
 ---
 
@@ -26,7 +26,7 @@ target-folder/
     Alien Earth (2025) - S01E01.mkv              ← show episode
 ```
 
-Every processing attempt is persisted in an H2 database. Failed attempts are retried automatically on a configurable schedule.
+Every processing attempt is persisted in an H2 database. Failed attempts are retried on a configurable schedule.
 
 ---
 
@@ -41,65 +41,108 @@ Every processing attempt is persisted in an H2 database. Failed attempts are ret
 
 ## Configuration
 
-All settings live under the `media.*` namespace.
+Configuration works in two layers:
+
+1. **application.yml / environment variables** — seed values used the first time the service starts and whenever a stored value is still a placeholder.
+2. **Web UI (Settings tab)** — once you save a value through the UI it is written to the H2 database and takes precedence from that point on. Restarting the service does **not** overwrite values you have already saved through the UI.
+
+In short: environment/YAML sets the defaults on first boot; the UI is the live source of truth after that.
+
+### application.yml reference
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `media.source-folder` | — | Folder to watch for new media files |
 | `media.target-folder` | — | Root folder files are moved into |
-| `media.file-extensions` | mkv mp4 avi m4v mov wmv | Extensions to consider as media |
-| `media.poll-interval-ms` | `30000` | How often the source folder is scanned |
-| `media.stability-threshold-seconds` | `60` | Seconds a file's size must be stable before processing |
+| `media.file-extensions` | mkv mp4 avi m4v mov wmv | Extensions treated as media |
+| `media.poll-interval-ms` | `30000` | How often the source folder is scanned (ms) |
+| `media.stability-threshold-seconds` | `60` | Seconds a file size must be stable before processing |
 | `media.tmdb.api-key` | — | TMDB API read-access token (Bearer) |
 | `media.tmdb.base-url` | `https://api.themoviedb.org/3` | TMDB base URL |
-| `media.retry.interval-ms` | `300000` | How often failed records are retried (5 min) |
-| `media.retry.max-attempts` | `5` | Total attempts before giving up |
+| `media.retry.enabled` | `false` | Enable automatic retry of failed records |
+| `media.retry.interval-ms` | `300000` | How often failed records are retried (ms) |
+| `media.retry.max-attempts` | `5` | Maximum total attempts per record |
+| `spring.ai.openai.api-key` | `ollama` | LLM API key (use `ollama` for local Ollama) |
+| `spring.ai.openai.base-url` | `http://localhost:11434` | LLM base URL |
+| `spring.ai.openai.chat.options.model` | `qwen2.5:14b` | LLM model name |
 
-### Local secrets
+### Local secrets (development profile)
 
-Copy your TMDB bearer token into `src/main/resources/application-development.yml` (git-ignored):
+Create `src/main/resources/application-development.yml` (git-ignored) with your real keys:
 
 ```yaml
 media:
+  source-folder: /path/to/your/downloads
+  target-folder: /path/to/your/library
   tmdb:
     api-key: YOUR_TMDB_BEARER_TOKEN
+
+spring:
+  ai:
+    openai:
+      base-url: http://localhost:11434
+      api-key: ollama
+      chat:
+        options:
+          model: qwen2.5:14b
 ```
 
-Then activate the profile when running:
+Then start with the development profile active:
 
 ```bash
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=development
 ```
+
+Or in VS Code using the Spring Boot Dashboard, set the environment variable `SPRING_PROFILES_ACTIVE=development` in `.vscode/launch.json`.
+
+### Configuring via the UI
+
+Open `http://localhost:8080` and go to the **Settings** tab. Changes are saved to the database immediately when you click **Save Settings** and take effect for the next processing attempt — no restart needed.
+
+**LLM provider options:**
+
+| Provider | API Key | Base URL | Notes |
+|----------|---------|----------|-------|
+| OpenAI | `sk-...` | `https://api.openai.com` | Cloud, paid |
+| Ollama (local) | `ollama` | `http://localhost:11434` | Free, runs locally |
+| Anthropic | `sk-ant-...` | *(not used)* | Cloud, paid |
+
+---
+
+## Web UI
+
+Open `http://localhost:8080` after starting the service.
+
+- **Logs tab** — shows all files currently in the source folder with their status, plus the full processing history with pagination and filters.
+- **Settings tab** — configure paths, TMDB API key, LLM provider/key/model, and date display format.
+
+### Processing statuses
+
+| Status | Meaning |
+|--------|---------|
+| `PENDING` | Queued or first attempt in progress |
+| `LLM_FAILED` | LLM could not parse the filename |
+| `TMDB_FAILED` | TMDB returned no results |
+| `MOVE_FAILED` | File system move failed |
+| `MOVED` | Successfully processed — terminal state |
 
 ---
 
 ## Database
 
-Processing history is stored in an H2 file database at `./data/mediahandler` (also git-ignored).
+Processing history is stored in an H2 file database at `./data/mediahandler` (git-ignored).
 
-The H2 console is available at <http://localhost:8080/h2-console> while the app is running.
-
-| Status | Meaning |
-|--------|---------|
-| `PENDING` | First attempt in progress |
-| `LLM_FAILED` | LLM could not parse the filename — will be retried |
-| `TMDB_FAILED` | TMDB returned no results — will be retried |
-| `MOVE_FAILED` | File system move failed — will be retried |
-| `MOVED` | Successfully processed — terminal state |
+The H2 console is available at `http://localhost:8080/h2-console` while the app is running (JDBC URL: `jdbc:h2:file:./data/mediahandler`).
 
 ---
 
 ## Running
 
-**Prerequisites:** Java 21, Maven, a running Ollama instance (or any OpenAI-compatible endpoint).
+**Prerequisites:** Java 21, Maven, a running Ollama instance (or any OpenAI-compatible endpoint or Anthropic API key).
 
 ```bash
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=development
 ```
-
-### LLM
-
-The service uses an OpenAI-compatible API. By default it points to a local Ollama instance running `qwen2.5:14b`. Change `spring.ai.openai.*` in `application.yml` to use a different model or provider.
 
 ---
 
