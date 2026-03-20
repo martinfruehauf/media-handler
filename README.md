@@ -1,4 +1,4 @@
-# Media Handler
+so do# Media Handler
 
 A Spring Boot service that watches a source folder for new media files, parses their filenames using a local LLM, looks up canonical metadata on TMDB, then renames and moves them into a clean folder structure.
 

@@ -31,16 +31,6 @@ public class SourceFilesController {
     private final MediaProperties properties;
     private final MediaFileRepository repository;
 
-    public record SourceFileDto(
-            String filename,
-            String path,
-            long sizeBytes,
-            MediaFileStatus status,
-            String errorMessage,
-            int retryCount,
-            Long recordId
-    ) {}
-
     @GetMapping
     public List<SourceFileDto> list() {
         String folderPath = configService.getOrDefault(AppConfigService.SOURCE_FOLDER,

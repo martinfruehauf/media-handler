@@ -26,12 +26,18 @@ function switchTab(name) {
 
 // ── Source Folder ─────────────────────────────────────────────────────────────
 async function loadSourceFiles() {
+  const grid = document.getElementById('source-grid');
   try {
     const res = await fetch('/api/source-files');
+    if (!res.ok) {
+      grid.innerHTML = `<div class="empty">Error loading source folder (${res.status})</div>`;
+      return;
+    }
     const files = await res.json();
     renderSourceFiles(files);
   } catch (e) {
     console.error('Failed to load source files', e);
+    grid.innerHTML = '<div class="empty">Could not reach server.</div>';
   }
 }
 
