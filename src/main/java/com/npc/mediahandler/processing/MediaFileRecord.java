@@ -54,4 +54,8 @@ public class MediaFileRecord {
 
     /** Set only when status reaches MOVED. */
     private Instant processedAt;
+
+    /** JSON array of ProcessingNote, nullable. Populated after each pipeline run. */
+    @Column(columnDefinition = "TEXT")
+    private String processingNotes;
 }

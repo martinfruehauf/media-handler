@@ -218,6 +218,13 @@ function renderDetail(id) {
       ${r.processedAt ? `
       <span class="detail-label">Processed</span>
       <span class="detail-value">${fmtDateFull(r.processedAt)}</span>` : ''}
+
+      ${r.processingNotes ? `
+      <span class="detail-label" style="grid-column:1/-1; margin-top:8px; font-size:11px; text-transform:uppercase; letter-spacing:.05em;">Processing Steps</span>
+      ${JSON.parse(r.processingNotes).map(n => `
+        <span class="detail-label">${esc(n.step)}</span>
+        <span class="detail-value" style="font-family:monospace;font-size:12px;">${esc(n.detail)}</span>
+      `).join('')}` : ''}
     </div>
   `;
 }
@@ -242,6 +249,7 @@ function applyConfig() {
   setVal('cfg-llm-base-url',  config['llm.base-url']);
   setVal('cfg-llm-model',     config['llm.model']);
   document.getElementById('cfg-file-overwrite').checked = config['file.overwrite'] === 'true';
+  document.getElementById('cfg-wiki-title-lookup').checked = config['wiki.title.lookup'] === 'true';
 
   const provider = config['llm.provider'] || 'openai';
   selectProvider(provider, false);
@@ -280,6 +288,7 @@ async function saveSettings() {
     'llm.base-url':   getVal('cfg-llm-base-url'),
     'llm.model':      getVal('cfg-llm-model'),
     'file.overwrite': document.getElementById('cfg-file-overwrite').checked.toString(),
+    'wiki.title.lookup': document.getElementById('cfg-wiki-title-lookup').checked.toString(),
   };
 
   // Strip masked values so we don't overwrite with masks
