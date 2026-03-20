@@ -166,8 +166,11 @@ td {
   padding: 12px 12px;
   border-bottom: 1px solid var(--border);
   font-size: 13px;
-  vertical-align: middle;
+  vertical-align: top;
 }
+
+/* Status, dates — never wrap */
+td:nth-child(n+2) { white-space: nowrap; }
 
 tr:last-child td { border-bottom: none; }
 
@@ -177,10 +180,7 @@ tr.clickable:hover td { background: var(--surface2); }
 .filename {
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 12px;
-  max-width: 400px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  word-break: break-all;
 }
 
 /* ── Badges ── */
