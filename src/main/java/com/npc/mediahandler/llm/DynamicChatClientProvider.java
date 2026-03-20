@@ -47,7 +47,7 @@ public class DynamicChatClientProvider {
             log.debug("Building OpenAI ChatClient with baseUrl={}, model={}", baseUrl, model);
             WebClient.Builder webClientBuilder = WebClient.builder()
                     .clientConnector(new ReactorClientHttpConnector(
-                            HttpClient.create().responseTimeout(Duration.ofMinutes(10))));
+                            HttpClient.create().responseTimeout(Duration.ofMinutes(15))));
             OpenAiApi openAiApi = OpenAiApi.builder()
                     .baseUrl(baseUrl)
                     .apiKey(apiKey)
