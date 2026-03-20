@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Optional;
 
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -27,7 +28,7 @@ public class FileRenameService {
     private final AppConfigService configService;
     private final MediaProperties properties;
 
-    public Path process(Path source, MediaMetadata metadata, TmdbResult tmdbResult) throws IOException {
+    public Optional<Path> process(Path source, MediaMetadata metadata, TmdbResult tmdbResult) throws IOException {
         String ext = FilenameUtils.getExtension(source.getFileName().toString());
         Path targetFile;
 
@@ -51,8 +52,17 @@ public class FileRenameService {
                             metadata.season(), metadata.episode(), ext));
         }
 
+        if (Files.exists(targetFile)) {
+            boolean overwrite = Boolean.parseBoolean(
+                configService.getOrDefault(AppConfigService.FILE_OVERWRITE, "false"));
+            if (!overwrite) {
+                log.info("Target already exists, skipping (overwrite disabled): {}", targetFile);
+                return Optional.empty();
+            }
+        }
+
         Files.move(source, targetFile, REPLACE_EXISTING);
         log.info("Moved: {} → {}", source, targetFile);
-        return targetFile;
+        return Optional.of(targetFile);
     }
 }

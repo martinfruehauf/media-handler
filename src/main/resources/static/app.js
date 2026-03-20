@@ -241,6 +241,7 @@ function applyConfig() {
   setVal('cfg-llm-api-key',   config['llm.api-key']);
   setVal('cfg-llm-base-url',  config['llm.base-url']);
   setVal('cfg-llm-model',     config['llm.model']);
+  document.getElementById('cfg-file-overwrite').checked = config['file.overwrite'] === 'true';
 
   const provider = config['llm.provider'] || 'openai';
   selectProvider(provider, false);
@@ -278,6 +279,7 @@ async function saveSettings() {
     'llm.api-key':    getVal('cfg-llm-api-key'),
     'llm.base-url':   getVal('cfg-llm-base-url'),
     'llm.model':      getVal('cfg-llm-model'),
+    'file.overwrite': document.getElementById('cfg-file-overwrite').checked.toString(),
   };
 
   // Strip masked values so we don't overwrite with masks
@@ -303,6 +305,7 @@ function badge(status) {
   const map = {
     MOVED:       ['moved',   'Moved'],
     PENDING:     ['pending', 'Pending'],
+    SKIPPED:     ['skipped', 'Skipped'],
     LLM_FAILED:  ['failed',  'LLM Failed'],
     TMDB_FAILED: ['failed',  'TMDB Failed'],
     MOVE_FAILED: ['failed',  'Move Failed'],

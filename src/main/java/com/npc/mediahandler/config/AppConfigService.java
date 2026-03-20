@@ -31,6 +31,7 @@ public class AppConfigService {
     public static final String LLM_API_KEY     = "llm.api-key";
     public static final String LLM_BASE_URL    = "llm.base-url";
     public static final String LLM_MODEL       = "llm.model";
+    public static final String FILE_OVERWRITE  = "file.overwrite";
 
     private final AppConfigRepository repository;
     private final MediaProperties properties;
@@ -46,6 +47,7 @@ public class AppConfigService {
         setIfAbsent(LLM_API_KEY,   openAiApiKey);
         setIfAbsent(LLM_BASE_URL,  openAiBaseUrl);
         setIfAbsent(LLM_MODEL,     openAiModel);
+        setIfAbsent(FILE_OVERWRITE, "false");
     }
 
     public String get(String key) {
