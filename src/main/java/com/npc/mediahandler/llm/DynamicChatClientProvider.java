@@ -1,5 +1,7 @@
 package com.npc.mediahandler.llm;
 
+import java.time.Duration;
+
 import org.springframework.ai.anthropic.AnthropicChatModel;
 import org.springframework.ai.anthropic.AnthropicChatOptions;
 import org.springframework.ai.anthropic.api.AnthropicApi;
@@ -8,12 +10,15 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import com.npc.mediahandler.config.AppConfigService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import reactor.netty.http.client.HttpClient;
 
 import static com.npc.mediahandler.config.AppConfigService.*;
 
@@ -40,7 +45,14 @@ public class DynamicChatClientProvider {
                     .build();
         } else {
             log.debug("Building OpenAI ChatClient with baseUrl={}, model={}", baseUrl, model);
-            OpenAiApi openAiApi = OpenAiApi.builder().baseUrl(baseUrl).apiKey(apiKey).build();
+            WebClient.Builder webClientBuilder = WebClient.builder()
+                    .clientConnector(new ReactorClientHttpConnector(
+                            HttpClient.create().responseTimeout(Duration.ofMinutes(10))));
+            OpenAiApi openAiApi = OpenAiApi.builder()
+                    .baseUrl(baseUrl)
+                    .apiKey(apiKey)
+                    .webClientBuilder(webClientBuilder)
+                    .build();
             chatModel = OpenAiChatModel.builder()
                     .openAiApi(openAiApi)
                     .defaultOptions(OpenAiChatOptions.builder().model(model).build())
