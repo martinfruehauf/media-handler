@@ -3,131 +3,138 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TITLE="MediaHandler LXC"
 
-# ── colour helpers ────────────────────────────────────────────────────────────
-YW='\033[33m' GN='\033[1;92m' RD='\033[01;31m' CL='\033[m' BFR='\r\033[K'
+# ── colour helpers (used after whiptail, during provisioning) ─────────────────
+YW='\033[33m' GN='\033[1;92m' RD='\033[01;31m' CL='\033[m'
 CM="${GN}✓${CL}" CROSS="${RD}✗${CL}"
-msg_info()  { echo -e "   ${YW}… $1${CL}"; }
-msg_ok()    { echo -e "   ${CM} $1"; }
-msg_error() { echo -e "   ${CROSS} $1"; exit 1; }
+msg_info()  { echo -e " ${YW}… $1${CL}"; }
+msg_ok()    { echo -e " ${CM} $1"; }
+msg_error() { echo -e " ${CROSS} $1"; exit 1; }
 
-# ── prompt helpers ────────────────────────────────────────────────────────────
-prompt() {
-  # prompt <varname> <question> [default]
-  local var="$1" msg="$2" default="${3:-}"
-  if [[ -n "$default" ]]; then
-    read -rp "   $msg [$default]: " val
-    printf -v "$var" '%s' "${val:-$default}"
-  else
-    local val=""
-    while [[ -z "$val" ]]; do
-      read -rp "   $msg (required): " val
-    done
-    printf -v "$var" '%s' "$val"
-  fi
+# ── whiptail helpers ──────────────────────────────────────────────────────────
+# All whiptail output goes to stdout via the 3>&1 1>&2 2>&3 redirect trick.
+# Pressing Escape or Cancel exits the script cleanly.
+
+w_input() {
+  # w_input <varname> <prompt> [default]
+  local var="$1" prompt="$2" default="${3:-}"
+  local val
+  val=$(whiptail --backtitle "$TITLE" --title "Settings" \
+    --inputbox "$prompt" 8 58 "$default" 3>&1 1>&2 2>&3) || exit 0
+  printf -v "$var" '%s' "${val:-$default}"
 }
 
-prompt_optional() {
-  # prompt_optional <varname> <question>   — blank is fine
-  local var="$1" msg="$2"
-  read -rp "   $msg (optional, Enter to skip): " val
-  printf -v "$var" '%s' "${val:-}"
-}
-
-prompt_secret() {
-  local var="$1" msg="$2"
-  local val="" confirm=""
-  while true; do
-    while [[ -z "$val" ]]; do
-      read -rsp "   $msg: " val; echo
-    done
-    read -rsp "   Confirm $msg: " confirm; echo
-    [[ "$val" == "$confirm" ]] && break
-    echo "   Passwords do not match, try again."
-    val="" confirm=""
+w_required() {
+  # Like w_input but loops until the user enters something non-empty
+  local var="$1" prompt="$2" default="${3:-}"
+  local val=""
+  while [[ -z "$val" ]]; do
+    val=$(whiptail --backtitle "$TITLE" --title "Settings" \
+      --inputbox "$prompt" 8 58 "$default" 3>&1 1>&2 2>&3) || exit 0
   done
   printf -v "$var" '%s' "$val"
 }
 
-prompt_yn() {
-  # prompt_yn <varname> <question> <default Y|N>
-  local var="$1" msg="$2" default="${3:-Y}"
-  local hint; [[ "$default" == "Y" ]] && hint="Y/n" || hint="y/N"
-  read -rp "   $msg [$hint]: " val
-  val="${val:-$default}"
-  printf -v "$var" '%s' "${val^^}"   # store as uppercase Y or N
+w_password() {
+  # Asks twice, loops until both entries match and are non-empty
+  local var="$1"
+  local pw1="" pw2=""
+  while true; do
+    pw1=$(whiptail --backtitle "$TITLE" --title "Settings" \
+      --passwordbox "Root Password" 8 58 "" 3>&1 1>&2 2>&3) || exit 0
+    if [[ -z "$pw1" ]]; then
+      whiptail --backtitle "$TITLE" --title "Error" \
+        --msgbox "Password cannot be empty." 8 40
+      continue
+    fi
+    pw2=$(whiptail --backtitle "$TITLE" --title "Settings" \
+      --passwordbox "Confirm Root Password" 8 58 "" 3>&1 1>&2 2>&3) || exit 0
+    [[ "$pw1" == "$pw2" ]] && break
+    whiptail --backtitle "$TITLE" --title "Error" \
+      --msgbox "Passwords do not match. Please try again." 8 50
+    pw1="" pw2=""
+  done
+  printf -v "$var" '%s' "$pw1"
 }
 
-# ── header ────────────────────────────────────────────────────────────────────
-echo
-echo -e "${GN}  MediaHandler LXC Setup${CL}"
-echo    "  ─────────────────────────────────────────────"
-echo
+w_yesno() {
+  # w_yesno <varname> <prompt> <default: Y|N>
+  # Stores "Y" or "N" in <varname>
+  local var="$1" prompt="$2" default="${3:-Y}"
+  local extra_args=()
+  [[ "$default" == "N" ]] && extra_args=(--defaultno)
+  if whiptail --backtitle "$TITLE" --title "Settings" \
+    --yesno "$prompt" 8 58 "${extra_args[@]}"; then
+    printf -v "$var" '%s' "Y"
+  else
+    printf -v "$var" '%s' "N"
+  fi
+}
 
-# ── container basics ──────────────────────────────────────────────────────────
+# ── container ─────────────────────────────────────────────────────────────────
 NEXT_ID=$(pvesh get /cluster/nextid 2>/dev/null || echo 100)
-prompt CTID      "Container ID"   "$NEXT_ID"
-prompt HOSTNAME  "Hostname"       "mediahandler"
-prompt_secret ROOT_PW "Root password"
-prompt_yn SSH_ACCESS "Enable root SSH access?" "N"
 
-echo
-prompt DISK_SIZE "Disk size (GB)" "4"
-prompt RAM       "RAM (MB)"       "1024"
-prompt CPU_CORES "CPU cores"      "2"
+w_input   CTID      "Container ID"    "$NEXT_ID"
+w_input   HOSTNAME  "Hostname"        "mediahandler"
+w_password ROOT_PW
+w_yesno   SSH_ACCESS "Enable root SSH access?" "N"
 
-echo
-prompt_yn UNPRIVILEGED "Unprivileged container?" "Y"
+# ── resources ─────────────────────────────────────────────────────────────────
+w_input   DISK_SIZE "Disk size (GB)"  "4"
+w_input   RAM       "RAM (MB)"        "1024"
+w_input   CPU_CORES "CPU cores"       "2"
+w_yesno   UNPRIVILEGED "Unprivileged container?" "Y"
 
 # ── network ───────────────────────────────────────────────────────────────────
-echo
-prompt BRIDGE "Network bridge" "vmbr0"
-prompt_optional VLAN "VLAN tag (1–4094)"
-prompt_optional MAC  "MAC address (XX:XX:XX:XX:XX:XX)"
-prompt_optional MTU  "MTU size"
+w_input   BRIDGE "Network bridge" "vmbr0"
 
-echo
-echo "   Enter the IPv4 CIDR address for the container, or press Enter for DHCP."
-read -rp "   IPv4 address/CIDR [dhcp]: " IPV4_ADDR
+IPV4_ADDR=$(whiptail --backtitle "$TITLE" --title "Network" \
+  --inputbox "IPv4 address/CIDR (e.g. 192.168.1.100/24)
+Leave blank or type 'dhcp' for DHCP" \
+  9 58 "dhcp" 3>&1 1>&2 2>&3) || exit 0
 IPV4_ADDR="${IPV4_ADDR:-dhcp}"
 
-if [[ "$IPV4_ADDR" == "dhcp" ]]; then
-  GATEWAY=""
-else
-  prompt GATEWAY "Gateway IP" ""
+GATEWAY=""
+if [[ "$IPV4_ADDR" != "dhcp" ]]; then
+  w_required GATEWAY "Gateway IP (e.g. 192.168.1.1)" ""
 fi
 
-prompt_yn DISABLE_IPV6 "Disable IPv6?" "N"
-prompt_optional DNS_SERVER "DNS server IP"
-prompt_optional DNS_SEARCH "DNS search domain"
+w_yesno   DISABLE_IPV6 "Disable IPv6?" "N"
+w_input   VLAN       "VLAN tag (leave blank to skip)" ""
+w_input   MAC        "MAC address (leave blank for auto)" ""
+w_input   MTU        "MTU size (leave blank for default)" ""
+w_input   DNS_SERVER "DNS server IP (leave blank for default)" ""
+w_input   DNS_SEARCH "DNS search domain (leave blank to skip)" ""
 
-# ── app-specific ──────────────────────────────────────────────────────────────
-echo
-prompt SOURCE_FOLDER        "Source folder on host (e.g. /mnt/media/downloads)"  ""
-prompt TARGET_FOLDER_MOVIES "Target folder for movies on host (e.g. /mnt/media/movies)" ""
-prompt TARGET_FOLDER_SHOWS  "Target folder for shows on host (e.g. /mnt/media/shows)"   ""
+# ── folders ───────────────────────────────────────────────────────────────────
+w_required SOURCE_FOLDER        "Source folder on Proxmox host
+(e.g. /mnt/media/downloads)" ""
 
-# ── summary ───────────────────────────────────────────────────────────────────
-echo
-echo -e "  ${YW}Summary${CL}"
-echo    "  ─────────────────────────────────────────────"
-echo    "  CT ID:       $CTID"
-echo    "  Hostname:    $HOSTNAME"
-echo    "  Type:        $( [[ "$UNPRIVILEGED" == "Y" ]] && echo "Unprivileged" || echo "Privileged" )"
-echo    "  Disk:        ${DISK_SIZE} GB   RAM: ${RAM} MB   CPU: ${CPU_CORES} cores"
-echo    "  Bridge:      $BRIDGE$( [[ -n "$VLAN" ]] && echo " (VLAN $VLAN)" )"
-echo    "  IPv4:        $IPV4_ADDR$( [[ -n "$GATEWAY" ]] && echo "  GW: $GATEWAY" )"
-echo    "  IPv6:        $( [[ "$DISABLE_IPV6" == "Y" ]] && echo "disabled" || echo "enabled" )"
-[[ -n "$DNS_SERVER" ]] && echo "  DNS:         $DNS_SERVER"
-[[ -n "$MAC"        ]] && echo "  MAC:         $MAC"
-[[ -n "$MTU"        ]] && echo "  MTU:         $MTU"
-echo    "  SSH access:  $( [[ "$SSH_ACCESS" == "Y" ]] && echo "yes" || echo "no" )"
-echo    "  Source:      $SOURCE_FOLDER → /mnt/source"
-echo    "  Movies:      $TARGET_FOLDER_MOVIES → /mnt/movies"
-echo    "  Shows:       $TARGET_FOLDER_SHOWS → /mnt/shows"
-echo
-read -rp "   Proceed? [Y/n]: " confirm
-[[ "${confirm:-Y}" =~ ^[Nn] ]] && { echo "Aborted."; exit 0; }
+w_required TARGET_FOLDER_MOVIES "Target folder for MOVIES on Proxmox host
+(e.g. /mnt/media/movies)" ""
+
+w_required TARGET_FOLDER_SHOWS  "Target folder for SHOWS on Proxmox host
+(e.g. /mnt/media/shows)" ""
+
+# ── summary + confirm ─────────────────────────────────────────────────────────
+SUMMARY="Container ID : $CTID
+Hostname     : $HOSTNAME
+Type         : $( [[ "$UNPRIVILEGED" == "Y" ]] && echo "Unprivileged" || echo "Privileged" )
+Disk         : ${DISK_SIZE} GB   RAM: ${RAM} MB   CPU: ${CPU_CORES} cores
+Bridge       : $BRIDGE$( [[ -n "$VLAN" ]] && echo " tag $VLAN" )
+IPv4         : $IPV4_ADDR$( [[ -n "$GATEWAY" ]] && echo "  GW: $GATEWAY" )
+IPv6         : $( [[ "$DISABLE_IPV6" == "Y" ]] && echo "disabled" || echo "enabled" )
+SSH access   : $( [[ "$SSH_ACCESS" == "Y" ]] && echo "yes" || echo "no" )$( [[ -n "$MAC" ]] && echo "\nMAC          : $MAC" )$( [[ -n "$MTU" ]] && echo "\nMTU          : $MTU" )$( [[ -n "$DNS_SERVER" ]] && echo "\nDNS          : $DNS_SERVER" )
+
+Source       : $SOURCE_FOLDER
+Movies       : $TARGET_FOLDER_MOVIES
+Shows        : $TARGET_FOLDER_SHOWS"
+
+whiptail --backtitle "$TITLE" --title "Summary" \
+  --yesno "$SUMMARY
+
+Proceed with creation?" 26 62 || exit 0
 
 # ── download Debian 12 template if needed ─────────────────────────────────────
 TEMPLATE="debian-12-standard_12.7-1_amd64.tar.zst"
@@ -165,7 +172,7 @@ PCT_ARGS=(
 [[ -n "$DNS_SEARCH" ]] && PCT_ARGS+=(--searchdomain "$DNS_SEARCH")
 [[ "$SSH_ACCESS" == "Y" ]] && PCT_ARGS+=(--ssh-public-keys /root/.ssh/authorized_keys 2>/dev/null || true)
 
-# ── create LXC ───────────────────────────────────────────────────────────────
+# ── create LXC ────────────────────────────────────────────────────────────────
 echo
 msg_info "Creating container $CTID"
 pct create "${PCT_ARGS[@]}" >/dev/null
@@ -194,13 +201,13 @@ pct exec "$CTID" -- bash /tmp/install.sh \
   --target-shows /mnt/shows \
   --github-repo martinfruehauf/media-handler
 
-# ── done ─────────────────────────────────────────────────────────────────────
+# ── done ──────────────────────────────────────────────────────────────────────
 echo
-echo -e "  ${GN}Done!${CL} Container $CTID is up and running."
+echo -e " ${GN}Done!${CL} Container $CTID is up and running."
 if [[ "$IPV4_ADDR" == "dhcp" ]]; then
   CONTAINER_IP=$(pct exec "$CTID" -- ip -4 addr show eth0 2>/dev/null \
     | awk '/inet / {print $2}' | cut -d/ -f1 || echo "<container-ip>")
 else
   CONTAINER_IP="${IPV4_ADDR%%/*}"
 fi
-echo -e "  Open ${YW}http://${CONTAINER_IP}:8080${CL} to configure MediaHandler."
+echo -e " Open ${YW}http://${CONTAINER_IP}:8080${CL} to configure MediaHandler."
