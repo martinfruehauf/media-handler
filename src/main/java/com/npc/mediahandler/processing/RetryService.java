@@ -30,7 +30,7 @@ public class RetryService {
             return;
         }
         int maxAttempts = properties.getRetry().getMaxAttempts();
-        List<MediaFileRecord> candidates = repository.findByStatusInAndRetryCountLessThan(RETRYABLE, maxAttempts);
+        List<MediaFileRecord> candidates = repository.findLatestRetryable(RETRYABLE, maxAttempts);
 
         if (candidates.isEmpty()) {
             log.debug("Retry scan: nothing to retry");
