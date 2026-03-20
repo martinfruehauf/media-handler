@@ -354,6 +354,44 @@ tr.clickable:hover td { background: var(--surface2); }
   font-size: 13px;
 }
 
+/* ── Pagination ── */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 12px 0;
+}
+
+.pag-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 5px 14px;
+  transition: border-color .15s;
+}
+.pag-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-h); }
+.pag-btn:disabled { opacity: .3; cursor: default; }
+
+.pag-info { font-size: 12px; color: var(--muted); min-width: 120px; text-align: center; }
+
+.page-size-select {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 4px 8px;
+  outline: none;
+  cursor: pointer;
+}
+.page-size-select option { background: var(--surface2); }
+
 .tab { display: none; }
 .tab.active { display: block; }
 

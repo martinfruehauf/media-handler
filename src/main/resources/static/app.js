@@ -5,6 +5,8 @@ let records = [];
 let activeFilter = 'ALL';
 let openDetailId = null;
 let config = {};
+let currentPage = 0;
+let pageSize = 10;
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -99,6 +101,7 @@ function renderStats() {
 
 function setFilter(f) {
   activeFilter = f;
+  currentPage = 0;
   document.querySelectorAll('.filter-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.filter === f);
   });
@@ -106,24 +109,48 @@ function setFilter(f) {
   renderTable();
 }
 
-function renderTable() {
-  const filtered = records.filter(r => {
+function setPageSize(val) {
+  pageSize = val === 'all' ? Infinity : parseInt(val);
+  currentPage = 0;
+  openDetailId = null;
+  renderTable();
+}
+
+function goPage(delta) {
+  const filtered = filteredRecords();
+  const totalPages = Math.ceil(filtered.length / pageSize);
+  currentPage = Math.max(0, Math.min(currentPage + delta, totalPages - 1));
+  openDetailId = null;
+  renderTable();
+}
+
+function filteredRecords() {
+  return records.filter(r => {
     if (activeFilter === 'ALL')     return true;
     if (activeFilter === 'SUCCESS') return r.status === 'MOVED';
     if (activeFilter === 'FAILED')  return r.status.endsWith('_FAILED');
     if (activeFilter === 'PENDING') return r.status === 'PENDING';
     return true;
   });
+}
 
+function renderTable() {
+  const filtered = filteredRecords();
   const tbody = document.getElementById('records-tbody');
 
   if (filtered.length === 0) {
     tbody.innerHTML = `<tr><td colspan="4" class="empty">No records found.</td></tr>`;
     document.getElementById('detail-panel').classList.remove('open');
+    document.getElementById('pagination').style.display = 'none';
     return;
   }
 
-  tbody.innerHTML = filtered.map(r => `
+  const isAll = pageSize === Infinity;
+  const totalPages = isAll ? 1 : Math.ceil(filtered.length / pageSize);
+  currentPage = Math.min(currentPage, totalPages - 1);
+  const page = isAll ? filtered : filtered.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+
+  tbody.innerHTML = page.map(r => `
     <tr class="clickable" onclick="toggleDetail(${r.id})" data-id="${r.id}">
       <td><span class="filename" title="${esc(r.originalFilename)}">${esc(r.originalFilename)}</span></td>
       <td>${badge(r.status)}</td>
@@ -133,6 +160,14 @@ function renderTable() {
   `).join('');
 
   if (openDetailId !== null) renderDetail(openDetailId);
+
+  // Pagination bar
+  const pag = document.getElementById('pagination');
+  pag.style.display = 'flex';
+  document.getElementById('pag-info').textContent =
+    isAll ? `${filtered.length} records` : `${currentPage + 1} / ${totalPages}  (${filtered.length} total)`;
+  document.getElementById('pag-prev').disabled = currentPage === 0 || isAll;
+  document.getElementById('pag-next').disabled = currentPage >= totalPages - 1 || isAll;
 }
 
 function toggleDetail(id) {
