@@ -5,5 +5,6 @@ public enum MediaFileStatus {
     LLM_FAILED,
     TMDB_FAILED,
     MOVE_FAILED,
-    MOVED
+    MOVED,
+    SKIPPED
 }

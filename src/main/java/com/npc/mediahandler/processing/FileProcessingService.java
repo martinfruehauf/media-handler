@@ -3,11 +3,15 @@ package com.npc.mediahandler.processing;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Instant;
+import java.util.Optional;
 
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
+import com.npc.mediahandler.config.AppConfigService;
+import com.npc.mediahandler.config.MediaProperties;
 import com.npc.mediahandler.llm.FilenameParserService;
 import com.npc.mediahandler.media.MediaMetadata;
 import com.npc.mediahandler.monitor.FileReadyEvent;
@@ -26,6 +30,8 @@ public class FileProcessingService {
     private final TmdbService tmdbService;
     private final FileRenameService fileRenameService;
     private final MediaFileRepository repository;
+    private final AppConfigService configService;
+    private final MediaProperties properties;
 
     @EventListener
     public void onFileReady(FileReadyEvent event) {
@@ -55,8 +61,16 @@ public class FileProcessingService {
             return;
         }
 
-        // Step 1 — LLM filename parse
-        MediaMetadata metadata = filenameParserService.parse(record.getOriginalFilename());
+        // Step 1 — LLM filename parse (with folder-name fallback)
+        String sourceRoot = configService.getOrDefault(
+            AppConfigService.SOURCE_FOLDER, properties.getSourceFolder());
+        Path parent = source.getParent();
+        String folderHint = (parent != null && !parent.equals(Paths.get(sourceRoot)))
+            ? parent.getFileName().toString()
+            : null;
+
+        MediaMetadata metadata = filenameParserService.parseWithFolderFallback(
+            record.getOriginalFilename(), folderHint);
         if (metadata.isError()) {
             log.warn("LLM parse failed for '{}': {}", record.getOriginalFilename(), metadata.error());
             record.setStatus(MediaFileStatus.LLM_FAILED);
@@ -80,13 +94,19 @@ public class FileProcessingService {
 
         // Step 3 — Rename and move
         try {
-            Path target = fileRenameService.process(source, metadata, tmdbResult);
+            Optional<Path> target = fileRenameService.process(source, metadata, tmdbResult);
+            if (target.isEmpty()) {
+                record.setStatus(MediaFileStatus.SKIPPED);
+                record.setErrorMessage("File already exists at target and overwrite is disabled");
+                repository.save(record);
+                return;
+            }
             record.setStatus(MediaFileStatus.MOVED);
-            record.setTargetPath(target.toString());
+            record.setTargetPath(target.get().toString());
             record.setErrorMessage(null);
             record.setProcessedAt(Instant.now());
             repository.save(record);
-            log.info("Successfully processed '{}' → {}", record.getOriginalFilename(), target);
+            log.info("Successfully processed '{}' → {}", record.getOriginalFilename(), target.get());
         } catch (IOException e) {
             log.error("Move failed for '{}': {}", record.getOriginalFilename(), e.getMessage());
             record.setStatus(MediaFileStatus.MOVE_FAILED);
