@@ -31,10 +31,22 @@ public class FileProcessingService {
     public void onFileReady(FileReadyEvent event) {
         Path source = event.getFile();
 
-        // Reuse an existing record (e.g. after app restart) rather than creating a duplicate.
-        // Skip files already successfully moved.
         MediaFileRecord record = repository.findBySourcePath(source.toString())
-                .filter(r -> r.getStatus() != MediaFileStatus.MOVED)
+                .map(r -> {
+                    if (r.getStatus() == MediaFileStatus.MOVED) {
+                        // Same path, new file — reset the record and reprocess
+                        log.info("File reappeared at previously moved path, reprocessing: {}", source.getFileName());
+                        r.setStatus(MediaFileStatus.PENDING);
+                        r.setTargetPath(null);
+                        r.setErrorMessage(null);
+                        r.setRetryCount(0);
+                        r.setCreatedAt(Instant.now());
+                        r.setProcessedAt(null);
+                        r.setLastAttemptAt(null);
+                        return repository.save(r);
+                    }
+                    return r;
+                })
                 .orElseGet(() -> repository.save(MediaFileRecord.builder()
                         .originalFilename(source.getFileName().toString())
                         .sourcePath(source.toString())

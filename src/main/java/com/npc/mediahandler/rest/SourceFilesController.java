@@ -46,7 +46,9 @@ public class SourceFilesController {
                     .map(file -> {
                         long size = 0;
                         try { size = Files.size(file); } catch (IOException ignored) {}
-                        MediaFileRecord record = repository.findBySourcePath(file.toString()).orElse(null);
+                        MediaFileRecord record = repository.findBySourcePath(file.toString())
+                                .filter(r -> r.getStatus() != MediaFileStatus.MOVED)
+                                .orElse(null);
                         return new SourceFileDto(
                                 file.getFileName().toString(),
                                 file.toString(),
