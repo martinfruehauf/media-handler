@@ -1,0 +1,237 @@
+'use strict';
+
+// ── State ────────────────────────────────────────────────────────────────────
+let records = [];
+let activeFilter = 'ALL';
+let openDetailId = null;
+let config = {};
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  switchTab('logs');
+  loadRecords();
+  setInterval(loadRecords, 15_000);
+});
+
+// ── Tabs ─────────────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+
+  if (name === 'settings') loadConfig();
+}
+
+// ── Logs ─────────────────────────────────────────────────────────────────────
+async function loadRecords() {
+  try {
+    const res = await fetch('/api/records');
+    records = await res.json();
+    renderStats();
+    renderTable();
+  } catch (e) {
+    console.error('Failed to load records', e);
+  }
+}
+
+function renderStats() {
+  const total   = records.length;
+  const moved   = records.filter(r => r.status === 'MOVED').length;
+  const failed  = records.filter(r => r.status.endsWith('_FAILED')).length;
+  const pending = records.filter(r => r.status === 'PENDING').length;
+
+  document.getElementById('stat-total').textContent   = total;
+  document.getElementById('stat-moved').textContent   = moved;
+  document.getElementById('stat-failed').textContent  = failed;
+  document.getElementById('stat-pending').textContent = pending;
+}
+
+function setFilter(f) {
+  activeFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.filter === f);
+  });
+  openDetailId = null;
+  renderTable();
+}
+
+function renderTable() {
+  const filtered = records.filter(r => {
+    if (activeFilter === 'ALL')     return true;
+    if (activeFilter === 'SUCCESS') return r.status === 'MOVED';
+    if (activeFilter === 'FAILED')  return r.status.endsWith('_FAILED');
+    if (activeFilter === 'PENDING') return r.status === 'PENDING';
+    return true;
+  });
+
+  const tbody = document.getElementById('records-tbody');
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" class="empty">No records found.</td></tr>`;
+    document.getElementById('detail-panel').classList.remove('open');
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(r => `
+    <tr class="clickable" onclick="toggleDetail(${r.id})" data-id="${r.id}">
+      <td><span class="filename" title="${esc(r.originalFilename)}">${esc(r.originalFilename)}</span></td>
+      <td>${badge(r.status)}</td>
+      <td>${fmtDate(r.createdAt)}</td>
+      <td>${fmtDate(r.lastAttemptAt) || '—'}</td>
+    </tr>
+  `).join('');
+
+  if (openDetailId !== null) renderDetail(openDetailId);
+}
+
+function toggleDetail(id) {
+  if (openDetailId === id) {
+    openDetailId = null;
+    document.getElementById('detail-panel').classList.remove('open');
+  } else {
+    openDetailId = id;
+    renderDetail(id);
+  }
+}
+
+function renderDetail(id) {
+  const r = records.find(x => x.id === id);
+  if (!r) return;
+
+  const panel = document.getElementById('detail-panel');
+  panel.classList.add('open');
+
+  panel.innerHTML = `
+    <button class="close-btn" onclick="toggleDetail(${r.id})">✕</button>
+    <h3>Record #${r.id}</h3>
+    <div class="detail-grid">
+      <span class="detail-label">Filename</span>
+      <span class="detail-value">${esc(r.originalFilename)}</span>
+
+      <span class="detail-label">Status</span>
+      <span class="detail-value">${badge(r.status)}</span>
+
+      <span class="detail-label">Attempts</span>
+      <span class="detail-value">${r.retryCount}</span>
+
+      <span class="detail-label">Source path</span>
+      <span class="detail-value">${esc(r.sourcePath || '—')}</span>
+
+      ${r.targetPath ? `
+      <span class="detail-label">Target path</span>
+      <span class="detail-value">${esc(r.targetPath)}</span>` : ''}
+
+      ${r.errorMessage ? `
+      <span class="detail-label">Error</span>
+      <span class="detail-error">${esc(r.errorMessage)}</span>` : ''}
+
+      <span class="detail-label">Created</span>
+      <span class="detail-value">${fmtDateFull(r.createdAt)}</span>
+
+      ${r.processedAt ? `
+      <span class="detail-label">Processed</span>
+      <span class="detail-value">${fmtDateFull(r.processedAt)}</span>` : ''}
+    </div>
+  `;
+}
+
+// ── Settings ─────────────────────────────────────────────────────────────────
+async function loadConfig() {
+  try {
+    const res = await fetch('/api/config');
+    config = await res.json();
+    applyConfig();
+  } catch (e) {
+    console.error('Failed to load config', e);
+  }
+}
+
+function applyConfig() {
+  setVal('cfg-source-folder', config['source.folder']);
+  setVal('cfg-target-folder', config['target.folder']);
+  setVal('cfg-tmdb-api-key',  config['tmdb.api-key']);
+  setVal('cfg-llm-api-key',   config['llm.api-key']);
+  setVal('cfg-llm-base-url',  config['llm.base-url']);
+  setVal('cfg-llm-model',     config['llm.model']);
+
+  const provider = config['llm.provider'] || 'openai';
+  selectProvider(provider, false);
+}
+
+function selectProvider(p, save) {
+  document.querySelectorAll('.provider-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.provider === p);
+  });
+  const isOpenAi = p !== 'anthropic';
+  document.getElementById('openai-fields').style.display = isOpenAi ? '' : 'none';
+  if (save) config['llm.provider'] = p;
+}
+
+async function saveSettings() {
+  const payload = {
+    'source.folder':  getVal('cfg-source-folder'),
+    'target.folder':  getVal('cfg-target-folder'),
+    'tmdb.api-key':   getVal('cfg-tmdb-api-key'),
+    'llm.provider':   config['llm.provider'] || 'openai',
+    'llm.api-key':    getVal('cfg-llm-api-key'),
+    'llm.base-url':   getVal('cfg-llm-base-url'),
+    'llm.model':      getVal('cfg-llm-model'),
+  };
+
+  // Strip masked values so we don't overwrite with masks
+  Object.keys(payload).forEach(k => {
+    if (payload[k] && /^\*+.{4}$/.test(payload[k])) delete payload[k];
+  });
+
+  try {
+    await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    toast('Settings saved', 'success');
+  } catch (e) {
+    toast('Failed to save settings', 'error');
+  }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function badge(status) {
+  const map = {
+    MOVED:       ['moved',   'Moved'],
+    PENDING:     ['pending', 'Pending'],
+    LLM_FAILED:  ['failed',  'LLM Failed'],
+    TMDB_FAILED: ['failed',  'TMDB Failed'],
+    MOVE_FAILED: ['failed',  'Move Failed'],
+  };
+  const [cls, label] = map[status] || ['warning', status];
+  return `<span class="badge badge-${cls}">${label}</span>`;
+}
+
+function esc(s) {
+  if (!s) return '';
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function fmtDate(iso) {
+  if (!iso) return null;
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function fmtDateFull(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString();
+}
+
+function getVal(id) { return document.getElementById(id)?.value || ''; }
+function setVal(id, v) { const el = document.getElementById(id); if (el) el.value = v || ''; }
+
+let toastTimer;
+function toast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast show ${type}`;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}

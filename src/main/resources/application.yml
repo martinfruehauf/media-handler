@@ -1,32 +1,13 @@
 spring:
   ai:
-    mcp:
-      client:
-        enabled: true
-        type: SYNC  # or ASYNC
-        #sse:
-        #  connections:
-        #    tmdb-server:
-        #      url: http://localhost:8081
-        #      sse-endpoint: /sse  # This matches your server's default
-
-        stdio:
-          root-change-notification: true
-
-        toolcallback:
-          enabled: true
-
-    #anthropic:
-    #  api-key: sk-ant-....
-    #  chat:
-    #    options:
-    #      model: claude-3-haiku-20240307
     openai:
       api-key: ollama
       base-url: http://192.168.178.78:11434
       chat:
         options:
           model: qwen2.5:14b
+    retry:
+      max-attempts: 1   # disable Spring AI's built-in LLM retry — we handle retries ourselves
 
   application:
     name: media-handler

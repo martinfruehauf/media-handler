@@ -8,26 +8,22 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.npc.mediahandler.config.MediaProperties;
+import com.npc.mediahandler.config.AppConfigService;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import static com.npc.mediahandler.config.AppConfigService.*;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class TmdbService {
 
-    private final RestClient restClient;
-
-    public TmdbService(MediaProperties properties) {
-        MediaProperties.Tmdb tmdb = properties.getTmdb();
-        this.restClient = RestClient.builder()
-                .baseUrl(tmdb.getBaseUrl())
-                .defaultHeader("Authorization", "Bearer " + tmdb.getApiKey())
-                .build();
-    }
+    private final AppConfigService configService;
 
     public TmdbResult searchMovie(String name, String year) {
-        TmdbSearchResponse response = restClient.get()
+        TmdbSearchResponse response = restClient().get()
                 .uri(b -> b.path("/search/movie")
                         .queryParam("query", name)
                         .queryParam("year", year)
@@ -49,7 +45,7 @@ public class TmdbService {
     }
 
     public TmdbResult searchShow(String name, String year) {
-        TmdbShowSearchResponse response = restClient.get()
+        TmdbShowSearchResponse response = restClient().get()
                 .uri(b -> b.path("/search/tv")
                         .queryParam("query", name)
                         .queryParam("first_air_date_year", year)
@@ -68,6 +64,15 @@ public class TmdbService {
                 ? result.firstAirDate().substring(0, 4)
                 : year;
         return new TmdbResult(result.name(), resultYear, String.valueOf(result.id()));
+    }
+
+    private RestClient restClient() {
+        String baseUrl = configService.getOrDefault(TMDB_BASE_URL, "https://api.themoviedb.org/3");
+        String apiKey  = configService.getOrDefault(TMDB_API_KEY, "");
+        return RestClient.builder()
+                .baseUrl(baseUrl)
+                .defaultHeader("Authorization", "Bearer " + apiKey)
+                .build();
     }
 
     record TmdbSearchResponse(List<MovieResult> results) {

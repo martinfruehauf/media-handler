@@ -15,6 +15,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import com.npc.mediahandler.config.AppConfigService;
 import com.npc.mediahandler.config.MediaProperties;
 import lombok.extern.slf4j.Slf4j;
 
@@ -23,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 public class FileMonitorService {
 
     private final MediaProperties properties;
+    private final AppConfigService configService;
     private final ApplicationEventPublisher eventPublisher;
 
     /** Last observed size per file. Updated whenever the size changes. */
@@ -34,14 +36,17 @@ public class FileMonitorService {
     /** Files already published as ready — prevents duplicate events. */
     private final Set<Path> publishedFiles = new HashSet<>();
 
-    public FileMonitorService(MediaProperties properties, ApplicationEventPublisher eventPublisher) {
+    public FileMonitorService(MediaProperties properties, AppConfigService configService,
+            ApplicationEventPublisher eventPublisher) {
         this.properties = properties;
+        this.configService = configService;
         this.eventPublisher = eventPublisher;
     }
 
     @Scheduled(fixedDelayString = "${media.poll-interval-ms:30000}")
     public void scan() {
-        String sourceFolderPath = properties.getSourceFolder();
+        String sourceFolderPath = configService.getOrDefault(AppConfigService.SOURCE_FOLDER,
+                properties.getSourceFolder());
         if (sourceFolderPath == null || sourceFolderPath.isBlank()) {
             log.warn("media.source-folder is not configured — skipping scan");
             return;

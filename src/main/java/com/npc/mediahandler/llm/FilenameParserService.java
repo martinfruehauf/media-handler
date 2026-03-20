@@ -1,13 +1,22 @@
 package com.npc.mediahandler.llm;
 
-import org.springframework.ai.chat.client.ChatClient;
+import java.util.concurrent.Semaphore;
+
 import org.springframework.stereotype.Service;
 
 import com.npc.mediahandler.media.LlmResponseParser;
 import com.npc.mediahandler.media.MediaMetadata;
 
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class FilenameParserService {
+
+    /** Ensures only one request is in flight to the LLM at a time. */
+    private final Semaphore llmSlot = new Semaphore(1);
 
     static final String SYSTEM_PROMPT = """
             Your sole purpose is to extract clean metadata from a messy movie or TV show filename.
@@ -62,20 +71,28 @@ public class FilenameParserService {
             error: Input does not appear to be a movie or TV show filename.
             """;
 
-    private final ChatClient chatClient;
+    private final DynamicChatClientProvider chatClientProvider;
     private final LlmResponseParser responseParser;
 
-    public FilenameParserService(ChatClient.Builder builder, LlmResponseParser responseParser) {
-        this.chatClient = builder.build();
-        this.responseParser = responseParser;
-    }
-
     public MediaMetadata parse(String filename) {
-        String response = chatClient.prompt()
-                .system(SYSTEM_PROMPT)
-                .user(filename)
-                .call()
-                .content();
-        return responseParser.parse(response);
+        try {
+            log.debug("Waiting for LLM slot: {}", filename);
+            llmSlot.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return new MediaMetadata(null, null, null, null, null, "Interrupted while waiting for LLM");
+        }
+        try {
+            log.debug("LLM slot acquired, calling model for: {}", filename);
+            String response = chatClientProvider.getChatClient().prompt()
+                    .system(SYSTEM_PROMPT)
+                    .user(filename)
+                    .call()
+                    .content();
+            return responseParser.parse(response);
+        } finally {
+            llmSlot.release();
+            log.debug("LLM slot released");
+        }
     }
 }

@@ -11,29 +11,26 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
+import com.npc.mediahandler.config.AppConfigService;
 import com.npc.mediahandler.config.MediaProperties;
 import com.npc.mediahandler.media.MediaMetadata;
 import com.npc.mediahandler.tmdb.TmdbResult;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class FileRenameService {
 
-    private final Path targetFolder;
+    private final AppConfigService configService;
+    private final MediaProperties properties;
 
-    public FileRenameService(MediaProperties properties) {
-        this.targetFolder = Paths.get(properties.getTargetFolder());
-    }
-
-    /**
-     * Renames and moves {@code source} to its canonical location under the target folder.
-     *
-     * @return the path the file was moved to
-     * @throws IOException if directory creation or the move operation fails
-     */
     public Path process(Path source, MediaMetadata metadata, TmdbResult tmdbResult) throws IOException {
+        Path targetFolder = Paths.get(configService.getOrDefault(
+                AppConfigService.TARGET_FOLDER, properties.getTargetFolder()));
+
         String ext = FilenameUtils.getExtension(source.getFileName().toString());
         Path targetFile;
 
