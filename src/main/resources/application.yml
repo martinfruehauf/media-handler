@@ -30,3 +30,39 @@ spring:
 
   application:
     name: media-handler
+
+  datasource:
+    url: jdbc:h2:file:./data/mediahandler;AUTO_SERVER=TRUE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+media:
+  source-folder: /tmp/projects/source
+  target-folder: /tmp/projects/target
+  file-extensions:
+    - mkv
+    - mp4
+    - avi
+    - m4v
+    - mov
+    - wmv
+  poll-interval-ms: 30000
+  stability-threshold-seconds: 60
+  tmdb:
+    api-key: YOUR_TMDB_BEARER_TOKEN
+    base-url: https://api.themoviedb.org/3
+  retry:
+    enabled: false         # set to true to automatically retry failed records
+    interval-ms: 300000   # retry failed records every 5 minutes
+    max-attempts: 5        # give up after 5 total attempts

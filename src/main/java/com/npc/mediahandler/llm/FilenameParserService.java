@@ -1,21 +1,15 @@
-package com.npc.mediahandler.rest;
+package com.npc.mediahandler.llm;
 
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.messaging.handler.annotation.MessageMapping;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.stereotype.Controller;
+import org.springframework.stereotype.Service;
 
 import com.npc.mediahandler.media.LlmResponseParser;
 import com.npc.mediahandler.media.MediaMetadata;
-import com.npc.mediahandler.media.MovieHandler;
-import com.npc.mediahandler.media.ShowHandler;
-import lombok.extern.slf4j.Slf4j;
 
-@Slf4j
-@Controller
-public class ChatStreamController {
+@Service
+public class FilenameParserService {
 
-    private static final String SYSTEM_PROMPT = """
+    static final String SYSTEM_PROMPT = """
             Your sole purpose is to extract clean metadata from a messy movie or TV show filename.
 
             Rules:
@@ -69,45 +63,19 @@ public class ChatStreamController {
             """;
 
     private final ChatClient chatClient;
-    private final SimpMessagingTemplate messagingTemplate;
     private final LlmResponseParser responseParser;
-    private final MovieHandler movieHandler;
-    private final ShowHandler showHandler;
 
-    public ChatStreamController(ChatClient.Builder builder, SimpMessagingTemplate messagingTemplate,
-            LlmResponseParser responseParser, MovieHandler movieHandler, ShowHandler showHandler) {
+    public FilenameParserService(ChatClient.Builder builder, LlmResponseParser responseParser) {
         this.chatClient = builder.build();
-        this.messagingTemplate = messagingTemplate;
         this.responseParser = responseParser;
-        this.movieHandler = movieHandler;
-        this.showHandler = showHandler;
     }
 
-    @MessageMapping("/message")
-    public void handleChatMessage(String userMessage) {
-        StringBuilder fullResponse = new StringBuilder();
-
-        chatClient.prompt()
+    public MediaMetadata parse(String filename) {
+        String response = chatClient.prompt()
                 .system(SYSTEM_PROMPT)
-                .user(userMessage)
-                .stream()
-                .content()
-                .doOnNext(token -> fullResponse.append(token))
-                .doOnComplete(() -> {
-                    MediaMetadata metadata = responseParser.parse(fullResponse.toString());
-                    if (metadata.isError()) {
-                        log.warn("LLM could not parse filename: {}", metadata.error());
-                    } else if (metadata.isMovie()) {
-                        movieHandler.handle(metadata);
-                    } else if (metadata.isShow()) {
-                        showHandler.handle(metadata);
-                    } else {
-                        log.warn("Unknown media type in LLM response: {}", fullResponse);
-                    }
-                })
-                .subscribe(token -> {
-                    // Pushes each word/token to the UI as it arrives
-                    messagingTemplate.convertAndSend("/topic/replies", token);
-                });
+                .user(filename)
+                .call()
+                .content();
+        return responseParser.parse(response);
     }
 }
