@@ -18,8 +18,9 @@ import lombok.Setter;
 public class AppConfig {
 
     @Id
-    private String key;
+    @Column(name = "config_key")
+    private String configKey;
 
-    @Column(length = 2000)
+    @Column(name = "config_value", length = 2000)
     private String value;
 }

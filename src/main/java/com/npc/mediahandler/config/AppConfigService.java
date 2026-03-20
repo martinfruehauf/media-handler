@@ -51,12 +51,12 @@ public class AppConfigService {
 
     public Map<String, String> getAll() {
         return repository.findAll().stream()
-                .collect(Collectors.toMap(AppConfig::getKey, AppConfig::getValue));
+                .collect(Collectors.toMap(AppConfig::getConfigKey, AppConfig::getValue));
     }
 
     private void setIfAbsent(String key, String value) {
         if (value != null && !repository.existsById(key)) {
-            repository.save(new AppConfig(key, value));
+            repository.save(new AppConfig(key, value));  // configKey, value
         }
     }
 }
