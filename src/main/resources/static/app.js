@@ -254,6 +254,19 @@ function selectProvider(p, save) {
   if (save) config['llm.provider'] = p;
 }
 
+async function deleteLogs() {
+  if (!confirm('Delete all processing logs? This cannot be undone.')) return;
+  try {
+    await fetch('/api/records', { method: 'DELETE' });
+    records = [];
+    renderStats();
+    renderTable();
+    toast('All logs deleted', 'success');
+  } catch (e) {
+    toast('Failed to delete logs', 'error');
+  }
+}
+
 async function saveSettings() {
   const payload = {
     'source.folder':  getVal('cfg-source-folder'),

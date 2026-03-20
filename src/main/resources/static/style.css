@@ -328,6 +328,21 @@ tr.clickable:hover td { background: var(--surface2); }
 
 .save-btn:hover { background: var(--accent-h); }
 
+.delete-logs-btn {
+  background: none;
+  border: 1px solid var(--error);
+  border-radius: 6px;
+  color: var(--error);
+  cursor: pointer;
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 9px 20px;
+  margin-left: 10px;
+  transition: background .15s, color .15s;
+}
+.delete-logs-btn:hover { background: var(--error); color: #fff; }
+
 .toast {
   position: fixed;
   bottom: 24px;
