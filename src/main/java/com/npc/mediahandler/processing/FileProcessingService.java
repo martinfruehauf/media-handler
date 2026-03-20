@@ -149,7 +149,9 @@ public class FileProcessingService {
             }
         }
 
-        // Step 3 — Rename and move
+        // Step 3 — Copy or move
+        boolean copyMode = Boolean.parseBoolean(
+                configService.getOrDefault(AppConfigService.FILE_COPY_MODE, "false"));
         try {
             Optional<Path> target = fileRenameService.process(source, metadata, tmdbResult);
             if (target.isEmpty()) {
@@ -160,11 +162,26 @@ public class FileProcessingService {
                 repository.save(record);
                 return;
             }
-            notes.add(new ProcessingNote("MOVED", target.get().toString()));
+            String action = copyMode ? "COPIED" : "MOVED";
+            notes.add(new ProcessingNote(action, target.get().toString()));
             record.setStatus(MediaFileStatus.MOVED);
             record.setTargetPath(target.get().toString());
             record.setErrorMessage(null);
             record.setProcessedAt(Instant.now());
+
+            if (copyMode) {
+                long deleteAfterHours = parseDeleteAfterHours();
+                if (deleteAfterHours > 0) {
+                    Instant deleteAt = Instant.now().plusSeconds(deleteAfterHours * 3600);
+                    record.setSourceDeleteAfter(deleteAt);
+                    notes.add(new ProcessingNote("DELETE_SCHEDULED",
+                            "original will be deleted after %d h (at %s)".formatted(
+                                    deleteAfterHours, deleteAt)));
+                } else {
+                    notes.add(new ProcessingNote("COPY_KEPT", "original kept (no delete schedule)"));
+                }
+            }
+
             record.setProcessingNotes(toJson(notes));
             repository.save(record);
             log.info("Successfully processed '{}' → {}", record.getOriginalFilename(), target.get());
@@ -190,6 +207,15 @@ public class FileProcessingService {
         } catch (JsonProcessingException e) {
             log.warn("Failed to serialize processing notes: {}", e.getMessage());
             return null;
+        }
+    }
+
+    private long parseDeleteAfterHours() {
+        String raw = configService.getOrDefault(AppConfigService.FILE_DELETE_ORIGINAL_AFTER_HOURS, "0").trim();
+        try {
+            return Math.max(0, Long.parseLong(raw));
+        } catch (NumberFormatException e) {
+            return 0;
         }
     }
 

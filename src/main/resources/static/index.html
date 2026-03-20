@@ -128,6 +128,16 @@
             Overwrite existing files at target (default: off)
           </label>
         </div>
+        <div class="field field--checkbox">
+          <label>
+            <input id="cfg-file-copy-mode" type="checkbox" onchange="toggleDeleteAfter()" />
+            Copy to target instead of moving (keep original in source, default: off)
+          </label>
+        </div>
+        <div class="field" id="delete-after-field" style="display:none;">
+          <label>Delete original after (hours, 0 = keep forever)</label>
+          <input id="cfg-file-delete-original-after-hours" type="number" min="0" step="1" placeholder="0" style="width:120px;" />
+        </div>
       </div>
     </div>
 
