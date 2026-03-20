@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.npc.mediahandler.config.AppConfigService;
+import com.npc.mediahandler.llm.DynamicChatClientProvider;
 
 import lombok.RequiredArgsConstructor;
 
@@ -25,6 +26,7 @@ public class ConfigController {
     );
 
     private final AppConfigService configService;
+    private final DynamicChatClientProvider chatClientProvider;
 
     @GetMapping
     public Map<String, String> getConfig() {
@@ -35,6 +37,11 @@ public class ConfigController {
                 ));
     }
 
+    private static final Set<String> LLM_KEYS = Set.of(
+            AppConfigService.LLM_PROVIDER, AppConfigService.LLM_API_KEY,
+            AppConfigService.LLM_BASE_URL, AppConfigService.LLM_MODEL
+    );
+
     @PostMapping
     public void updateConfig(@RequestBody Map<String, String> updates) {
         updates.forEach((key, value) -> {
@@ -42,6 +49,9 @@ public class ConfigController {
                 configService.set(key, value);
             }
         });
+        if (updates.keySet().stream().anyMatch(LLM_KEYS::contains)) {
+            chatClientProvider.invalidate();
+        }
     }
 
     private String mask(String value) {

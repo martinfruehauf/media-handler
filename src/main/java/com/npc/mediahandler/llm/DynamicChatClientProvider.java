@@ -1,6 +1,7 @@
 package com.npc.mediahandler.llm;
 
 import java.time.Duration;
+import java.util.Objects;
 
 import org.springframework.ai.anthropic.AnthropicChatModel;
 import org.springframework.ai.anthropic.AnthropicChatOptions;
@@ -10,8 +11,8 @@ import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
-import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.http.client.ReactorClientHttpRequestFactory;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -31,22 +32,36 @@ public class DynamicChatClientProvider {
 
     private final AppConfigService configService;
 
-    public ChatClient getChatClient() {
+    private ChatClient cachedClient;
+    private String cachedProvider;
+    private String cachedApiKey;
+    private String cachedBaseUrl;
+    private String cachedModel;
+
+    public synchronized ChatClient getChatClient() {
         String provider = configService.getOrDefault(LLM_PROVIDER, "openai");
         String apiKey   = configService.getOrDefault(LLM_API_KEY, "ollama");
         String baseUrl  = configService.getOrDefault(LLM_BASE_URL, "http://localhost:11434");
         String model    = configService.getOrDefault(LLM_MODEL, "qwen2.5:14b");
 
+        if (cachedClient != null
+                && Objects.equals(provider, cachedProvider)
+                && Objects.equals(apiKey,   cachedApiKey)
+                && Objects.equals(baseUrl,  cachedBaseUrl)
+                && Objects.equals(model,    cachedModel)) {
+            return cachedClient;
+        }
+
+        log.info("Building ChatClient: provider={}, baseUrl={}, model={}", provider, baseUrl, model);
+
         ChatModel chatModel;
         if ("anthropic".equalsIgnoreCase(provider)) {
-            log.debug("Building Anthropic ChatClient with model={}", model);
             AnthropicApi anthropicApi = AnthropicApi.builder().apiKey(apiKey).build();
             chatModel = AnthropicChatModel.builder()
                     .anthropicApi(anthropicApi)
                     .defaultOptions(AnthropicChatOptions.builder().model(model).build())
                     .build();
         } else {
-            log.debug("Building OpenAI ChatClient with baseUrl={}, model={}", baseUrl, model);
             HttpClient httpClient = HttpClient.create().responseTimeout(Duration.ofMinutes(15));
             RestClient.Builder restClientBuilder = RestClient.builder()
                     .requestFactory(new ReactorClientHttpRequestFactory(httpClient));
@@ -64,6 +79,17 @@ public class DynamicChatClientProvider {
                     .build();
         }
 
-        return ChatClient.builder(chatModel).build();
+        cachedClient  = ChatClient.builder(chatModel).build();
+        cachedProvider = provider;
+        cachedApiKey   = apiKey;
+        cachedBaseUrl  = baseUrl;
+        cachedModel    = model;
+
+        return cachedClient;
+    }
+
+    /** Call this after saving new LLM settings so the next request rebuilds the client. */
+    public synchronized void invalidate() {
+        cachedClient = null;
     }
 }
