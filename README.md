@@ -170,7 +170,7 @@ Open `http://localhost:8080` after starting the service.
 
 | Card | Settings |
 |------|----------|
-| **Paths** | Source folder, target folders (movies / shows), overwrite existing files, copy mode, delete original after N hours |
+| **Paths** | Source folder, target folders (movies / shows), overwrite existing files, copy mode, delete original after N hours, source folder cleanup |
 | **TMDB** | Bearer token |
 | **Title Resolution** | Wikipedia German→English translation (default: off) |
 | **LLM Provider** | Provider, API key, base URL, model |
@@ -195,6 +195,20 @@ Open `http://localhost:8080` after starting the service.
 ## Copy mode & deferred deletion
 
 When **Copy instead of moving** is enabled, the original file is kept in the source folder after the target copy is created. Optionally set **Delete original after N hours** to have the cleanup scheduler remove the original automatically. The scheduled deletion time is shown in the detail panel and survives service restarts.
+
+---
+
+## Source folder cleanup
+
+When a file is **moved** (not copied), the service can automatically clean up the subfolder it came from. This is enabled by default and can be toggled via **Delete source folder after move** in the Paths settings card.
+
+The cleanup runs immediately after a successful move:
+
+1. All non-video files (`.nfo`, `.jpg`, `.srt`, `.sfv`, etc.) are deleted silently.
+2. Video files smaller than **50 MB** are treated as sample clips and deleted. Each one is logged with its size as a `FOLDER_CLEANUP` step in the processing history.
+3. If the folder is now empty it is removed and recorded as `FOLDER_DELETED` in the processing history.
+
+The source root itself is never touched — only immediate subfolders the processed file came from.
 
 ---
 

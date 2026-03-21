@@ -34,6 +34,7 @@ public class AppConfigService {
     public static final String FILE_OVERWRITE                  = "file.overwrite";
     public static final String FILE_COPY_MODE                  = "file.copy.mode";
     public static final String FILE_DELETE_ORIGINAL_AFTER_HOURS = "file.delete.original.after.hours";
+    public static final String FOLDER_CLEANUP_ENABLED          = "folder.cleanup.enabled";
     public static final String WIKI_TITLE_LOOKUP               = "wiki.title.lookup";
 
     private final AppConfigRepository repository;
@@ -53,6 +54,7 @@ public class AppConfigService {
         setIfAbsent(FILE_OVERWRITE, "false");
         setIfAbsent(FILE_COPY_MODE, "false");
         setIfAbsent(FILE_DELETE_ORIGINAL_AFTER_HOURS, "0");
+        setIfAbsent(FOLDER_CLEANUP_ENABLED, "true");
         setIfAbsent(WIKI_TITLE_LOOKUP, "true");
     }
 

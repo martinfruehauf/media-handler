@@ -481,6 +481,7 @@ function applyConfig() {
   document.getElementById('cfg-file-copy-mode').checked = config['file.copy.mode'] === 'true';
   setVal('cfg-file-delete-original-after-hours', config['file.delete.original.after.hours'] || '0');
   toggleDeleteAfter();
+  document.getElementById('cfg-folder-cleanup-enabled').checked = config['folder.cleanup.enabled'] !== 'false';
   document.getElementById('cfg-wiki-title-lookup').checked = config['wiki.title.lookup'] === 'true';
 
   const provider = config['llm.provider'] || 'openai';
@@ -540,6 +541,7 @@ async function saveSettings() {
     'file.overwrite': document.getElementById('cfg-file-overwrite').checked.toString(),
     'file.copy.mode': document.getElementById('cfg-file-copy-mode').checked.toString(),
     'file.delete.original.after.hours': getVal('cfg-file-delete-original-after-hours') || '0',
+    'folder.cleanup.enabled': document.getElementById('cfg-folder-cleanup-enabled').checked.toString(),
     'wiki.title.lookup': document.getElementById('cfg-wiki-title-lookup').checked.toString(),
   };
 

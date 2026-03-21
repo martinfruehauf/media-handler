@@ -7,7 +7,10 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Stream;
 
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -180,6 +183,9 @@ public class FileProcessingService {
                 } else {
                     notes.add(new ProcessingNote("COPY_KEPT", "original kept (no delete schedule)"));
                 }
+            } else {
+                // Move mode: clean up the source folder after the file is gone
+                cleanupSourceFolder(source, notes);
             }
 
             record.setProcessingNotes(toJson(notes));
@@ -221,5 +227,76 @@ public class FileProcessingService {
 
     private static String nvl(String s) {
         return s != null ? s : "?";
+    }
+
+    // ── Source-folder cleanup ─────────────────────────────────────────────────
+
+    private static final Set<String> VIDEO_EXTENSIONS = Set.of(
+            "mkv", "mp4", "avi", "mov", "wmv", "m4v", "ts", "mpg", "mpeg",
+            "divx", "xvid", "flv", "webm", "rmvb", "rm", "vob", "m2ts", "mts"
+    );
+    /** Anything below this is treated as a sample / junk clip (50 MB). */
+    private static final long SMALL_VIDEO_THRESHOLD_BYTES = 50L * 1024 * 1024;
+
+    private void cleanupSourceFolder(Path movedFile, List<ProcessingNote> notes) {
+        boolean enabled = Boolean.parseBoolean(
+                configService.getOrDefault(AppConfigService.FOLDER_CLEANUP_ENABLED, "true"));
+        if (!enabled) return;
+
+        Path folder = movedFile.getParent();
+        String sourceRoot = configService.getOrDefault(
+                AppConfigService.SOURCE_FOLDER, properties.getSourceFolder());
+
+        // Never attempt to clean up the source root itself
+        if (folder == null || folder.equals(Paths.get(sourceRoot))) return;
+
+        // Delete leftover meta / small-video files
+        try (Stream<Path> stream = Files.list(folder)) {
+            for (Path file : stream.toList()) {
+                if (Files.isDirectory(file)) continue;
+                String ext = extension(file);
+                if (!VIDEO_EXTENSIONS.contains(ext)) {
+                    // Non-video meta file — delete silently
+                    Files.deleteIfExists(file);
+                    log.info("Deleted meta file during folder cleanup: {}", file);
+                } else {
+                    long size = Files.size(file);
+                    if (size < SMALL_VIDEO_THRESHOLD_BYTES) {
+                        Files.deleteIfExists(file);
+                        String sizeStr = formatSize(size);
+                        log.info("Deleted small video file during folder cleanup: {} ({})", file, sizeStr);
+                        notes.add(new ProcessingNote("FOLDER_CLEANUP",
+                                "deleted small video file \"%s\" (%s)".formatted(
+                                        file.getFileName(), sizeStr)));
+                    }
+                }
+            }
+        } catch (IOException e) {
+            log.warn("Could not list folder for cleanup '{}': {}", folder, e.getMessage());
+            return;
+        }
+
+        // Attempt to remove the (now hopefully empty) folder
+        try {
+            Files.delete(folder);
+            log.info("Deleted source folder: {}", folder);
+            notes.add(new ProcessingNote("FOLDER_DELETED", folder.toString()));
+        } catch (IOException e) {
+            // Folder not empty or permission issue — not a fatal error
+            log.debug("Could not delete source folder '{}' (may not be empty): {}", folder, e.getMessage());
+        }
+    }
+
+    private static String extension(Path file) {
+        String name = file.getFileName().toString();
+        int dot = name.lastIndexOf('.');
+        return dot >= 0 ? name.substring(dot + 1).toLowerCase(Locale.ROOT) : "";
+    }
+
+    private static String formatSize(long bytes) {
+        if (bytes < 1024) return bytes + " B";
+        if (bytes < 1024 * 1024) return "%.1f KB".formatted(bytes / 1024.0);
+        if (bytes < 1024L * 1024 * 1024) return "%.1f MB".formatted(bytes / (1024.0 * 1024));
+        return "%.2f GB".formatted(bytes / (1024.0 * 1024 * 1024));
     }
 }
