@@ -111,14 +111,24 @@ w_input   DNS_SERVER "DNS server IP (leave blank for default)" ""
 w_input   DNS_SEARCH "DNS search domain (leave blank to skip)" ""
 
 # ── summary + confirm ─────────────────────────────────────────────────────────
+TYPE_STR="Unprivileged"; if [[ "$UNPRIVILEGED" == "N" ]]; then TYPE_STR="Privileged"; fi
+IPV6_STR="enabled";      if [[ "$DISABLE_IPV6"  == "Y" ]]; then IPV6_STR="disabled";  fi
+SSH_STR="no";            if [[ "$SSH_ACCESS"    == "Y" ]]; then SSH_STR="yes";        fi
+
 SUMMARY="Container ID : $CTID
 Hostname     : $HOSTNAME
-Type         : $( [[ "$UNPRIVILEGED" == "Y" ]] && echo "Unprivileged" || echo "Privileged" )
+Type         : $TYPE_STR
 Disk         : ${DISK_SIZE} GB   RAM: ${RAM} MB   CPU: ${CPU_CORES} cores
-Bridge       : $BRIDGE$( [[ -n "$VLAN" ]] && echo " tag $VLAN" || true )
-IPv4         : $IPV4_ADDR$( [[ -n "$GATEWAY" ]] && echo "  GW: $GATEWAY" || true )
-IPv6         : $( [[ "$DISABLE_IPV6" == "Y" ]] && echo "disabled" || echo "enabled" )
-SSH access   : $( [[ "$SSH_ACCESS" == "Y" ]] && echo "yes" || echo "no" )$( [[ -n "$MAC" ]] && echo "\nMAC          : $MAC" || true )$( [[ -n "$MTU" ]] && echo "\nMTU          : $MTU" || true )$( [[ -n "$DNS_SERVER" ]] && echo "\nDNS          : $DNS_SERVER" || true )"
+Bridge       : $BRIDGE
+IPv4         : $IPV4_ADDR
+IPv6         : $IPV6_STR
+SSH access   : $SSH_STR"
+
+if [[ -n "$GATEWAY" ]];    then SUMMARY+=$'\nGateway      : '"$GATEWAY"; fi
+if [[ -n "$VLAN" ]];       then SUMMARY+=$'\nVLAN tag     : '"$VLAN"; fi
+if [[ -n "$MAC" ]];        then SUMMARY+=$'\nMAC          : '"$MAC"; fi
+if [[ -n "$MTU" ]];        then SUMMARY+=$'\nMTU          : '"$MTU"; fi
+if [[ -n "$DNS_SERVER" ]]; then SUMMARY+=$'\nDNS          : '"$DNS_SERVER"; fi
 
 whiptail --backtitle "$TITLE" --title "Summary" \
   --yesno "$SUMMARY
