@@ -49,8 +49,8 @@ public class AdminController {
                 log.info("Download complete — replacing JAR and restarting");
                 Files.move(tmpJar, currentJar,
                         StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-                // Exit with non-zero so systemd (Restart=on-failure) restarts the service
-                System.exit(SpringApplication.exit(context, () -> 1));
+                // Force non-zero exit so systemd restarts the service
+                System.exit(1);
             } catch (Exception e) {
                 log.error("Self-update failed", e);
                 try { Files.deleteIfExists(tmpJar); } catch (Exception ignored) {}

@@ -56,7 +56,7 @@ User=mediahandler
 WorkingDirectory=/opt/mediahandler
 EnvironmentFile=/etc/mediahandler.env
 ExecStart=/usr/bin/java -jar /opt/mediahandler/media-handler.jar
-Restart=on-failure
+Restart=always
 RestartSec=10
 
 [Install]
