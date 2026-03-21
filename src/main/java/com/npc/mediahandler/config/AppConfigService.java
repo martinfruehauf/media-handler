@@ -53,7 +53,7 @@ public class AppConfigService {
         setIfAbsent(FILE_OVERWRITE, "false");
         setIfAbsent(FILE_COPY_MODE, "false");
         setIfAbsent(FILE_DELETE_ORIGINAL_AFTER_HOURS, "0");
-        setIfAbsent(WIKI_TITLE_LOOKUP, "false");
+        setIfAbsent(WIKI_TITLE_LOOKUP, "true");
     }
 
     public String get(String key) {

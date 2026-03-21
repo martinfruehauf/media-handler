@@ -29,6 +29,9 @@ spring:
       path: /h2-console
 
 media:
+  source-folder: /mnt/nas/temp
+  target-folder-movies: /mnt/nas/movies
+  target-folder-shows: /mnt/nas/shows
   file-extensions:
     - mkv
     - mp4
