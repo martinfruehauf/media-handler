@@ -15,10 +15,6 @@
     <div class="logo-icon">&#9654;</div>
     MediaHandler
   </div>
-  <div class="pipeline-control">
-    <span class="pipeline-status" id="pipeline-status"></span>
-    <button class="pipeline-btn" id="pipeline-btn" onclick="togglePipeline()"></button>
-  </div>
   <nav>
     <button class="nav-btn" id="nav-logs"     onclick="switchTab('logs')">Logs</button>
     <button class="nav-btn" id="nav-settings" onclick="switchTab('settings')">Settings</button>
@@ -213,6 +209,26 @@
 
     <button class="save-btn" onclick="saveSettings()">Save Settings</button>
     <button class="delete-logs-btn" onclick="deleteLogs()">Delete All Logs</button>
+
+    <div class="dev-settings">
+      <div class="dev-settings-header" onclick="toggleDevSettings()">
+        Developer Settings
+        <span class="dev-settings-chevron" id="dev-settings-chevron">&#9656;</span>
+      </div>
+      <div class="dev-settings-body" id="dev-settings-body">
+        <p class="dev-settings-desc">
+          <strong>What does "Running / Stopped" mean?</strong><br>
+          When the pipeline is <em>running</em>, the service actively watches the source folder for new media files and automatically retries failed jobs on a schedule. It is the normal operating mode.<br><br>
+          When the pipeline is <em>stopped</em>, the file monitor and retry scheduler are paused — no new files will be picked up and no retries will happen. Files already in progress will finish, but nothing new starts. Existing records and logs are untouched.<br><br>
+          <strong>Play ▶</strong> — Resumes the pipeline. All previous file-tracking state is discarded and the source folder is re-scanned from scratch, so any files sitting there will be picked up as if they were just detected.<br>
+          <strong>Stop ■</strong> — Pauses the pipeline immediately. Use this if you need to move files manually, change settings, or troubleshoot without the service interfering.
+        </p>
+        <div class="dev-pipeline-control">
+          <span class="pipeline-status" id="pipeline-status"></span>
+          <button class="pipeline-btn" id="pipeline-btn" onclick="togglePipeline()"></button>
+        </div>
+      </div>
+    </div>
 
   </div>
 

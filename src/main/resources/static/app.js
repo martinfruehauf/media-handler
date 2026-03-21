@@ -321,6 +321,14 @@ function applyConfig() {
   selectProvider(provider, false);
 }
 
+function toggleDevSettings() {
+  const body    = document.getElementById('dev-settings-body');
+  const chevron = document.getElementById('dev-settings-chevron');
+  const open    = body.style.display === 'block';
+  body.style.display = open ? 'none' : 'block';
+  chevron.classList.toggle('open', !open);
+}
+
 function toggleDeleteAfter() {
   const copyMode = document.getElementById('cfg-file-copy-mode').checked;
   document.getElementById('delete-after-field').style.display = copyMode ? '' : 'none';

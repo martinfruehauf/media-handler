@@ -76,13 +76,12 @@ nav {
 .nav-btn:hover { color: var(--text); background: var(--surface2); }
 .nav-btn.active { color: var(--text); background: var(--surface2); }
 
-/* ── Pipeline control ── */
-.pipeline-control {
+/* ── Pipeline control (lives inside dev settings) ── */
+.dev-pipeline-control {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-right: auto;
-  margin-left: 24px;
+  margin-top: 12px;
 }
 
 .pipeline-status {
@@ -106,12 +105,12 @@ nav {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   border: none;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 9px;
   transition: background .15s, transform .1s;
 }
 .pipeline-btn:active { transform: scale(.93); }
@@ -125,6 +124,48 @@ nav {
   color: #fff;
 }
 .pipeline-btn.btn-play:hover { background: #16a34a; }
+
+/* ── Developer settings (collapsible) ── */
+.dev-settings {
+  margin-top: 24px;
+  border-top: 1px solid var(--border);
+  padding-top: 4px;
+}
+
+.dev-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  cursor: pointer;
+  user-select: none;
+}
+.dev-settings-header:hover { color: var(--text); }
+
+.dev-settings-chevron {
+  font-size: 10px;
+  transition: transform .2s;
+}
+.dev-settings-chevron.open { transform: rotate(90deg); }
+
+.dev-settings-body {
+  display: none;
+  padding: 4px 0 16px;
+}
+
+.dev-settings-desc {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0;
+}
+.dev-settings-desc strong { color: var(--text); }
+.dev-settings-desc em { font-style: normal; color: var(--text); }
 
 main {
   max-width: 1100px;
