@@ -183,9 +183,8 @@ sleep 5
 msg_ok "Container started"
 
 # ── install app inside container ──────────────────────────────────────────────
-msg_info "Downloading and running installer inside container"
-pct exec "$CTID" -- bash -c \
-  "curl -fsSL '${INSTALL_URL}' -o /tmp/install.sh && bash /tmp/install.sh --github-repo ${GITHUB_REPO}"
+msg_info "Running installer inside container"
+curl -fsSL "${INSTALL_URL}" | pct exec "$CTID" -- bash -s -- --github-repo "${GITHUB_REPO}"
 
 # ── done ──────────────────────────────────────────────────────────────────────
 echo
