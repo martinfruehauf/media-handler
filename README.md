@@ -1,3 +1,5 @@
+<img src="src/main/resources/static/favicon.svg" width="64" alt="MediaHandler" />
+
 # Media Handler
 
 A Spring Boot service that watches a source folder for new media files, parses their filenames using an LLM, looks up canonical metadata on TMDB, then renames and moves (or copies) them into a clean folder structure.
@@ -156,7 +158,11 @@ Open `http://localhost:8080` after starting the service.
 ### Logs tab
 
 - **Pipeline controls** (optional) — a **Running / Stopped** status pill and **▶ / ■** play/stop button appear at the top of this tab when enabled. Enable them via the **Developer Tools** section in Settings.
-- Source folder grid showing all media files currently present with their status.
+- Source folder grid showing all media files currently present with their status. Each file has:
+  - **↻ Reprocess** — re-queue a failed file immediately (also available globally via the **↻ Reprocess** button in the section header)
+  - **↻ Re-include** — re-queue a skipped/excluded file for processing
+  - **✕ Exclude** — mark a failed file as skipped so it won't be retried
+  - **✏ Rename** — rename the file in place and re-queue it
 - Processing history table with status filters, configurable page size (1, 2, 5, 10, 20, 50, 100, 1000, All), and pagination.
 - Click any row to open the **detail panel**, which shows paths, error messages, timestamps, and a **Processing Steps** section listing every step the pipeline took (LLM parse, TMDB attempts, Wikipedia lookup, move/copy, scheduled deletion).
 
@@ -169,7 +175,7 @@ Open `http://localhost:8080` after starting the service.
 | **Title Resolution** | Wikipedia German→English translation (default: off) |
 | **LLM Provider** | Provider, API key, base URL, model |
 | **Display** | Date format |
-| **Developer Tools** | Checkbox to show pipeline controls (Running/Stopped + Play/Stop) in the Logs tab |
+| **Developer Tools** | Checkbox to show pipeline controls (Running/Stopped + Play/Stop) in the Logs tab; **Update** button to pull the latest release JAR and restart the service |
 
 ---
 
@@ -182,7 +188,7 @@ Open `http://localhost:8080` after starting the service.
 | `TMDB_FAILED` | TMDB returned no results (after optional Wikipedia retry) |
 | `MOVE_FAILED` | File system move/copy failed |
 | `MOVED` | Successfully processed — file is at target path |
-| `SKIPPED` | Target file already exists and overwrite is disabled |
+| `SKIPPED` | Target file already exists and overwrite is disabled, or manually excluded — use **↻ Re-include** to re-queue |
 
 ---
 
