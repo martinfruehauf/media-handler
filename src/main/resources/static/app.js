@@ -19,7 +19,19 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('pipeline-control-bar').style.display = pipelineVisible ? 'flex' : 'none';
   loadRecords();
   loadSourceFiles();
+  checkHealth();
   setInterval(() => { loadRecords(); loadSourceFiles(); }, 15_000);
+  setInterval(checkHealth, 60_000);
+
+  // Event delegation for source grid action buttons
+  document.getElementById('source-grid').addEventListener('click', e => {
+    const btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    e.stopPropagation();
+    const action = btn.dataset.action;
+    if (action === 'rename') startRename(btn.dataset.path, btn.dataset.filename, btn.dataset.rowid);
+    else if (action === 'skip') skipFile(Number(btn.dataset.recordid));
+  });
 });
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
@@ -54,9 +66,24 @@ async function loadSourceFiles(manual = false) {
 }
 
 function renderSourceFiles(files) {
-  const grid = document.getElementById('source-grid');
-  if (files.length === 0) {
-    grid.innerHTML = '<div class="empty">No media files in source folder.</div>';
+  const grid    = document.getElementById('source-grid');
+  const section = document.getElementById('source-section');
+  const retryBtn = document.getElementById('retry-all-btn');
+
+  const anyFailed = files.some(f => f.status && f.status.endsWith('_FAILED'));
+  const hasFiles  = files.length > 0;
+
+  if (section) {
+    section.className = 'source-section ' + (
+      !hasFiles ? 'source-section--clear' :
+      anyFailed ? 'source-section--failed' :
+                  'source-section--pending'
+    );
+  }
+  if (retryBtn) retryBtn.style.display = anyFailed ? '' : 'none';
+
+  if (!hasFiles) {
+    grid.innerHTML = '<div class="empty">Source folder is clear — nothing to process.</div>';
     return;
   }
 
@@ -64,12 +91,27 @@ function renderSourceFiles(files) {
     const hasFailed = f.status && f.status.endsWith('_FAILED');
     const isPending = f.status === 'PENDING';
     const cls = hasFailed ? 'has-error' : isPending ? 'is-pending' : 'is-new';
-    const onclick = hasFailed ? `toggleSourceError('${f.recordId}')` : '';
+    const safeId = (f.recordId ?? f.filename).toString().replace(/[^a-z0-9_-]/gi, '_');
+    const rowId  = 'src-row-' + safeId;
+    const rowOnclick = hasFailed ? `toggleSourceError('${f.recordId}')` : '';
     return `
-      <div class="source-row ${cls}" onclick="${onclick}" id="src-row-${f.recordId ?? f.filename}">
+      <div class="source-row ${cls}" onclick="${rowOnclick}" id="${rowId}">
         <span class="source-filename" title="${esc(f.path)}">${esc(f.filename)}</span>
         ${badge(f.status)}
         <span class="source-size">${fmtSize(f.sizeBytes)}</span>
+        <span class="source-actions" onclick="event.stopPropagation()">
+          <button class="source-action-btn"
+            data-action="rename"
+            data-path="${esc(f.path)}"
+            data-filename="${esc(f.filename)}"
+            data-rowid="${rowId}"
+            title="Rename file">&#9998; Rename</button>
+          ${hasFailed && f.recordId ? `
+          <button class="source-action-btn danger"
+            data-action="skip"
+            data-recordid="${f.recordId}"
+            title="Exclude this file">&#10005; Exclude</button>` : ''}
+        </span>
       </div>
       ${hasFailed ? `<div class="source-error-detail" id="src-err-${f.recordId}">${esc(f.errorMessage || 'Unknown error')} &mdash; ${f.retryCount} attempt(s)</div>` : ''}
     `;
@@ -79,6 +121,92 @@ function renderSourceFiles(files) {
 function toggleSourceError(recordId) {
   const el = document.getElementById('src-err-' + recordId);
   if (el) el.classList.toggle('open');
+}
+
+// ── Source folder actions ─────────────────────────────────────────────────────
+async function retryAllFailed() {
+  const btn = document.getElementById('retry-all-btn');
+  btn.disabled = true;
+  btn.textContent = 'Retrying…';
+  try {
+    const res  = await fetch('/api/records/retry-failed', { method: 'POST' });
+    const data = await res.json();
+    toast(`Retrying ${data.queued} file(s)`, 'success');
+    setTimeout(() => { loadSourceFiles(); loadRecords(); }, 1000);
+  } catch (e) {
+    toast('Failed to queue retry', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '&#8634; Retry Failed';
+  }
+}
+
+async function skipFile(recordId) {
+  try {
+    await fetch(`/api/records/${recordId}/skip`, { method: 'POST' });
+    toast('File excluded', 'success');
+    loadSourceFiles();
+  } catch (e) {
+    toast('Failed to exclude file', 'error');
+  }
+}
+
+function startRename(path, filename, rowId) {
+  const existingRow = document.getElementById('rename-row-' + rowId);
+  if (existingRow) { existingRow.remove(); return; }
+
+  const sourceRow = document.getElementById(rowId);
+  if (!sourceRow) return;
+
+  const renameRow = document.createElement('div');
+  renameRow.id = 'rename-row-' + rowId;
+  renameRow.className = 'source-rename-row';
+  renameRow.innerHTML = `
+    <input class="source-rename-input" id="rename-input-${rowId}" type="text" value="${esc(filename)}" />
+    <button class="source-action-btn" onclick="submitRename(${JSON.stringify(path)}, '${rowId}')">Save</button>
+    <button class="source-action-btn" onclick="cancelRename('${rowId}')">Cancel</button>
+  `;
+  sourceRow.insertAdjacentElement('afterend', renameRow);
+
+  const input = document.getElementById('rename-input-' + rowId);
+  // Select the name part before the extension
+  const dotIdx = filename.lastIndexOf('.');
+  input.focus();
+  input.setSelectionRange(0, dotIdx > 0 ? dotIdx : filename.length);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter')  submitRename(path, rowId);
+    if (e.key === 'Escape') cancelRename(rowId);
+  });
+}
+
+function cancelRename(rowId) {
+  const el = document.getElementById('rename-row-' + rowId);
+  if (el) el.remove();
+}
+
+async function submitRename(path, rowId) {
+  const input = document.getElementById('rename-input-' + rowId);
+  if (!input) return;
+  const newName = input.value.trim();
+  if (!newName) return;
+
+  try {
+    const res = await fetch('/api/source-files/rename', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: path, newName }),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      toast('Rename failed: ' + (err.error || 'Unknown error'), 'error');
+      return;
+    }
+    toast('Renamed — processing will restart', 'success');
+    cancelRename(rowId);
+    setTimeout(() => { loadSourceFiles(); loadRecords(); }, 500);
+  } catch (e) {
+    toast('Rename failed', 'error');
+  }
 }
 
 // ── Logs ─────────────────────────────────────────────────────────────────────
@@ -462,6 +590,44 @@ function toast(msg, type) {
   el.className = `toast show ${type}`;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ── Health indicators ─────────────────────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const res = await fetch('/api/health');
+    if (!res.ok) return;
+    const { tmdb, llm } = await res.json();
+    updateHealthIndicator('health-tmdb', tmdb);
+    updateHealthIndicator('health-llm',  llm);
+  } catch (e) { /* silent — don't disrupt normal use on network hiccup */ }
+}
+
+function updateHealthIndicator(id, status) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.className = 'health-indicator ' + (status.ok ? 'ok' : 'err');
+  el.title = status.message || '';
+}
+
+// ── Self-update ───────────────────────────────────────────────────────────────
+async function updateApp() {
+  if (!confirm(
+    'This will download the latest release from GitHub and restart the service.\n\n' +
+    'The page will reload automatically after ~30 seconds.\n\nProceed?'
+  )) return;
+  try {
+    const res = await fetch('/api/admin/update', { method: 'POST' });
+    if (res.status === 400) {
+      const data = await res.json();
+      toast(data.error || 'Update not available in this environment', 'error');
+      return;
+    }
+    toast('Update in progress — page will reload in 30s…', 'success');
+    setTimeout(() => location.reload(), 30_000);
+  } catch (e) {
+    toast('Update request failed', 'error');
+  }
 }
 
 // ── First-run setup wizard ────────────────────────────────────────────────────

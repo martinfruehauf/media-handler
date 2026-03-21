@@ -23,6 +23,7 @@ public class TmdbService {
     private final AppConfigService configService;
 
     public TmdbResult searchMovie(String name, String year) {
+        log.info("→ TMDB movie search: name='{}', year='{}'", name, year);
         TmdbSearchResponse response = restClient().get()
                 .uri(b -> b.path("/search/movie")
                         .queryParam("query", name)
@@ -33,7 +34,7 @@ public class TmdbService {
                 .body(TmdbSearchResponse.class);
 
         if (response == null || CollectionUtils.isEmpty(response.results())) {
-            log.warn("TMDB returned no results for movie: name='{}', year='{}'", name, year);
+            log.warn("← TMDB no results for movie: name='{}', year='{}'", name, year);
             return null;
         }
 
@@ -41,10 +42,13 @@ public class TmdbService {
         String resultYear = StringUtils.length(result.releaseDate()) >= 4
                 ? result.releaseDate().substring(0, 4)
                 : year;
-        return new TmdbResult(result.title(), resultYear, String.valueOf(result.id()));
+        TmdbResult r = new TmdbResult(result.title(), resultYear, String.valueOf(result.id()));
+        log.info("← TMDB movie found: '{}' ({})", r.name(), r.year());
+        return r;
     }
 
     public TmdbResult searchShow(String name, String year) {
+        log.info("→ TMDB show search: name='{}', year='{}'", name, year);
         TmdbShowSearchResponse response = restClient().get()
                 .uri(b -> b.path("/search/tv")
                         .queryParam("query", name)
@@ -55,7 +59,7 @@ public class TmdbService {
                 .body(TmdbShowSearchResponse.class);
 
         if (response == null || CollectionUtils.isEmpty(response.results())) {
-            log.warn("TMDB returned no results for show: name='{}', year='{}'", name, year);
+            log.warn("← TMDB no results for show: name='{}', year='{}'", name, year);
             return null;
         }
 
@@ -63,7 +67,9 @@ public class TmdbService {
         String resultYear = StringUtils.length(result.firstAirDate()) >= 4
                 ? result.firstAirDate().substring(0, 4)
                 : year;
-        return new TmdbResult(result.name(), resultYear, String.valueOf(result.id()));
+        TmdbResult r = new TmdbResult(result.name(), resultYear, String.valueOf(result.id()));
+        log.info("← TMDB show found: '{}' ({})", r.name(), r.year());
+        return r;
     }
 
     private RestClient restClient() {

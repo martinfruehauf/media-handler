@@ -4,16 +4,23 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Stream;
 
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.npc.mediahandler.config.AppConfigService;
 import com.npc.mediahandler.config.MediaProperties;
+import com.npc.mediahandler.processing.FileProcessingService;
 import com.npc.mediahandler.processing.MediaFileRecord;
 import com.npc.mediahandler.processing.MediaFileRepository;
 import com.npc.mediahandler.processing.MediaFileStatus;
@@ -30,6 +37,9 @@ public class SourceFilesController {
     private final AppConfigService configService;
     private final MediaProperties properties;
     private final MediaFileRepository repository;
+    private final FileProcessingService fileProcessingService;
+
+    record RenameRequest(String from, String newName) {}
 
     @GetMapping
     public List<SourceFileDto> list() {
@@ -65,6 +75,37 @@ public class SourceFilesController {
             log.error("Failed to list source folder: {}", sourceFolder, e);
             return Collections.emptyList();
         }
+    }
+
+    @PostMapping("/rename")
+    public ResponseEntity<Map<String, String>> rename(@RequestBody RenameRequest req) {
+        Path from = Paths.get(req.from());
+        if (!Files.isRegularFile(from)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Source file not found"));
+        }
+        Path to = from.getParent().resolve(req.newName());
+        if (!to.getParent().toAbsolutePath().equals(from.getParent().toAbsolutePath())) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Cannot rename to a different directory"));
+        }
+        if (!isMediaFile(to.getFileName().toString())) {
+            return ResponseEntity.badRequest().body(Map.of("error", "New name must keep a supported media extension"));
+        }
+        try {
+            Files.move(from, to);
+        } catch (IOException e) {
+            log.error("Rename failed: {} → {}", from, to, e);
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+        MediaFileRecord record = repository.save(MediaFileRecord.builder()
+                .originalFilename(to.getFileName().toString())
+                .sourcePath(to.toString())
+                .status(MediaFileStatus.PENDING)
+                .createdAt(Instant.now())
+                .retryCount(0)
+                .build());
+        CompletableFuture.runAsync(() -> fileProcessingService.execute(record));
+        log.info("Renamed '{}' → '{}', queued for processing", from.getFileName(), to.getFileName());
+        return ResponseEntity.ok(Map.of("newPath", to.toString(), "newName", to.getFileName().toString()));
     }
 
     private boolean isMediaFile(String name) {

@@ -15,6 +15,10 @@
     <div class="logo-icon">&#9654;</div>
     MediaHandler
   </div>
+  <div class="health-bar" id="health-bar">
+    <span class="health-indicator" id="health-tmdb" title=""><span class="health-dot"></span>TMDB</span>
+    <span class="health-indicator" id="health-llm"  title=""><span class="health-dot"></span>LLM</span>
+  </div>
   <nav>
     <button class="nav-btn" id="nav-logs"     onclick="switchTab('logs')">Logs</button>
     <button class="nav-btn" id="nav-settings" onclick="switchTab('settings')">Settings</button>
@@ -62,13 +66,18 @@
       <button class="pipeline-btn" id="pipeline-btn" onclick="togglePipeline()"></button>
     </div>
 
-    <div class="section-title">
-      Source Folder
-      <span class="refresh-spinner" id="source-spinner"></span>
-      <button class="icon-btn" onclick="loadSourceFiles(true)" title="Refresh">&#8635;</button>
-    </div>
-    <div class="source-grid" id="source-grid">
-      <div class="empty">Loading...</div>
+    <div id="source-section" class="source-section">
+      <div class="section-title">
+        Source Folder
+        <span class="refresh-spinner" id="source-spinner"></span>
+        <span style="margin-left:auto;display:flex;gap:4px;align-items:center;">
+          <button class="icon-btn" id="retry-all-btn" style="margin-left:0;display:none;" onclick="retryAllFailed()" title="Retry all failed files">&#8634; Retry Failed</button>
+          <button class="icon-btn" style="margin-left:0;" onclick="loadSourceFiles(true)" title="Refresh">&#8635;</button>
+        </span>
+      </div>
+      <div class="source-grid" id="source-grid">
+        <div class="empty">Loading...</div>
+      </div>
     </div>
 
     <div class="section-title">Processing History</div>
@@ -265,6 +274,7 @@
             Show pipeline controls in the Logs view
           </label>
         </div>
+        <button class="update-btn" onclick="updateApp()">&#8593; Update MediaHandler (pull latest from GitHub)</button>
       </div>
     </div>
 

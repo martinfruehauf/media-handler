@@ -27,6 +27,17 @@ public interface MediaFileRepository extends JpaRepository<MediaFileRecord, Long
             @Param("statuses") List<MediaFileStatus> statuses,
             @Param("maxRetries") int maxRetries);
 
+    /**
+     * Returns the latest record per source path for any of the given statuses.
+     * Used by the manual retry-all action (no retry-count cap).
+     */
+    @Query("""
+            SELECT r FROM MediaFileRecord r
+            WHERE r.status IN :statuses
+              AND r.id = (SELECT MAX(r2.id) FROM MediaFileRecord r2 WHERE r2.sourcePath = r.sourcePath)
+            """)
+    List<MediaFileRecord> findLatestByStatus(@Param("statuses") List<MediaFileStatus> statuses);
+
     /** Records whose source file is due for deletion. */
     List<MediaFileRecord> findBySourceDeleteAfterBefore(Instant cutoff);
 }

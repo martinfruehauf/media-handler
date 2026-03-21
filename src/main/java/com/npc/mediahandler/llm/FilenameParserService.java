@@ -98,16 +98,19 @@ public class FilenameParserService {
             return new MediaMetadata(null, null, null, null, null, "Interrupted while waiting for LLM");
         }
         try {
-            log.debug("LLM slot acquired, calling model for: {}", filename);
+            log.info("→ LLM request: '{}'", filename);
             String response = chatClientProvider.getChatClient().prompt()
                     .system(SYSTEM_PROMPT)
                     .user(filename)
                     .call()
                     .content();
+            String preview = response != null
+                    ? response.replaceAll("\\s+", " ").substring(0, Math.min(200, response.length()))
+                    : "null";
+            log.info("← LLM response for '{}': {}", filename, preview);
             return responseParser.parse(response);
         } finally {
             llmSlot.release();
-            log.debug("LLM slot released");
         }
     }
 
