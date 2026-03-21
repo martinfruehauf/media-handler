@@ -248,6 +248,8 @@ async function loadControlState() {
 }
 
 async function togglePipeline() {
+  const btn = document.getElementById('pipeline-btn');
+  btn.disabled = true;
   const desired = !pipelineRunning;
   try {
     const res = await fetch('/api/control', {
@@ -266,6 +268,8 @@ async function togglePipeline() {
     }
   } catch (e) {
     toast('Failed to change pipeline state', 'error');
+  } finally {
+    btn.disabled = false;
   }
 }
 

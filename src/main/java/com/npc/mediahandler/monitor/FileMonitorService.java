@@ -38,6 +38,15 @@ public class FileMonitorService {
     /** Files already published as ready — prevents duplicate events. */
     private final Set<Path> publishedFiles = new HashSet<>();
 
+    /**
+     * When true, the next scan will clear all tracking state before running.
+     * Set by resetTracking() from the HTTP thread without holding any lock,
+     * which avoids a deadlock: scan() publishes events synchronously (running
+     * the full LLM + TMDB pipeline in the same thread), so it must never hold
+     * a lock that the HTTP thread might also need.
+     */
+    private volatile boolean resetPending = false;
+
     public FileMonitorService(MediaProperties properties, AppConfigService configService,
             ApplicationEventPublisher eventPublisher, ProcessingGateService gate) {
         this.properties = properties;
@@ -47,22 +56,30 @@ public class FileMonitorService {
     }
 
     /**
-     * Clears all tracking state so the next scheduled scan treats every source file
-     * as newly discovered. Called when the pipeline is resumed after a stop.
+     * Schedules a tracking reset. The maps are cleared at the start of the next
+     * scan cycle (which runs on the single scheduler thread), so no synchronization
+     * is needed.
      */
-    public synchronized void resetTracking() {
-        lastSeenSizes.clear();
-        sizeStableSince.clear();
-        publishedFiles.clear();
-        log.info("File tracking state reset — next scan will re-evaluate all source files");
+    public void resetTracking() {
+        resetPending = true;
+        log.info("File tracking reset scheduled — will take effect on next scan cycle");
     }
 
     @Scheduled(fixedDelayString = "${media.poll-interval-ms:30000}")
-    public synchronized void scan() {
+    public void scan() {
         if (!gate.isRunning()) {
             log.debug("Processing stopped — skipping scan");
             return;
         }
+
+        if (resetPending) {
+            lastSeenSizes.clear();
+            sizeStableSince.clear();
+            publishedFiles.clear();
+            resetPending = false;
+            log.info("File tracking state reset — re-evaluating all source files");
+        }
+
         String sourceFolderPath = configService.getOrDefault(AppConfigService.SOURCE_FOLDER,
                 properties.getSourceFolder());
         if (sourceFolderPath == null || sourceFolderPath.isBlank()) {
@@ -118,7 +135,6 @@ public class FileMonitorService {
         Long previousSize = lastSeenSizes.get(file);
 
         if (previousSize == null || previousSize != currentSize) {
-            // Size changed (or first time seeing the file) — reset stability clock
             if (previousSize == null) {
                 log.info("New media file detected: {} ({} bytes)", file.getFileName(), currentSize);
             } else {
@@ -129,7 +145,6 @@ public class FileMonitorService {
             return;
         }
 
-        // Size unchanged — check how long it has been stable
         Instant stableSince = sizeStableSince.get(file);
         long stableSeconds = Instant.now().getEpochSecond() - stableSince.getEpochSecond();
         long threshold = properties.getStabilityThresholdSeconds();
