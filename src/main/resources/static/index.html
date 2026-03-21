@@ -63,6 +63,9 @@
       <div style="margin-left:auto; display:flex; align-items:center; gap:6px;">
         <span style="font-size:12px;color:var(--muted)">Show</span>
         <select class="page-size-select" onchange="setPageSize(this.value)">
+          <option value="1">1</option>
+          <option value="2">2</option>
+          <option value="5">5</option>
           <option value="10" selected>10</option>
           <option value="20">20</option>
           <option value="50">50</option>
@@ -134,6 +137,18 @@
         <div class="field">
           <label>API Key (Bearer Token)</label>
           <input id="cfg-tmdb-api-key" type="password" placeholder="eyJ..." />
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Title Resolution</div>
+      <div class="settings-grid">
+        <div class="field field--checkbox">
+          <label>
+            <input id="cfg-wiki-title-lookup" type="checkbox" />
+            Use Wikipedia to translate German titles to English (default: off)
+          </label>
         </div>
       </div>
     </div>
