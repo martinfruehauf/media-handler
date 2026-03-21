@@ -98,9 +98,16 @@ function renderSourceFiles(files) {
             onclick="event.stopPropagation(); startRename(this.dataset.path, this.dataset.filename, this.dataset.rowid)"
             title="Rename file">&#9998; Rename</button>
           ${hasFailed && f.recordId ? `
+          <button class="source-action-btn"
+            onclick="event.stopPropagation(); retryFile(${f.recordId})"
+            title="Reprocess this file">&#8635; Reprocess</button>
           <button class="source-action-btn danger"
             onclick="event.stopPropagation(); skipFile(${f.recordId})"
             title="Exclude this file">&#10005; Exclude</button>` : ''}
+          ${f.status === 'SKIPPED' && f.recordId ? `
+          <button class="source-action-btn"
+            onclick="event.stopPropagation(); unskipFile(${f.recordId})"
+            title="Re-include this file for processing">&#8635; Re-include</button>` : ''}
         </span>
       </div>
       ${hasFailed ? `<div class="source-error-detail" id="src-err-${f.recordId}">${esc(f.errorMessage || 'Unknown error')} &mdash; ${f.retryCount} attempt(s)</div>` : ''}
@@ -155,6 +162,26 @@ async function skipFile(recordId) {
     loadSourceFiles();
   } catch (e) {
     toast('Failed to exclude file', 'error');
+  }
+}
+
+async function unskipFile(recordId) {
+  try {
+    await fetch(`/api/records/${recordId}/unskip`, { method: 'POST' });
+    toast('File re-included for processing', 'success');
+    loadSourceFiles();
+  } catch (e) {
+    toast('Failed to re-include file', 'error');
+  }
+}
+
+async function retryFile(recordId) {
+  try {
+    await fetch(`/api/records/${recordId}/retry`, { method: 'POST' });
+    toast('File queued for reprocessing', 'success');
+    setTimeout(() => { loadSourceFiles(); loadRecords(); }, 800);
+  } catch (e) {
+    toast('Failed to reprocess file', 'error');
   }
 }
 

@@ -75,6 +75,30 @@ public class RecordsController {
         }).orElse(ResponseEntity.notFound().build());
     }
 
+    @PostMapping("/{id}/unskip")
+    public ResponseEntity<Void> unskip(@PathVariable Long id) {
+        return repository.findById(id).map(r -> {
+            r.setStatus(MediaFileStatus.PENDING);
+            r.setErrorMessage(null);
+            repository.save(r);
+            CompletableFuture.runAsync(() -> fileProcessingService.execute(r));
+            return ResponseEntity.noContent().<Void>build();
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/{id}/retry")
+    public ResponseEntity<Void> retry(@PathVariable Long id) {
+        return repository.findById(id)
+                .filter(r -> Files.exists(Path.of(r.getSourcePath())))
+                .map(r -> {
+                    r.setStatus(MediaFileStatus.PENDING);
+                    r.setErrorMessage(null);
+                    repository.save(r);
+                    CompletableFuture.runAsync(() -> fileProcessingService.execute(r));
+                    return ResponseEntity.noContent().<Void>build();
+                }).orElse(ResponseEntity.notFound().build());
+    }
+
     @DeleteMapping
     public ResponseEntity<Void> deleteAll() {
         repository.deleteAll();
