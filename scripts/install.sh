@@ -16,8 +16,12 @@ JAR_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/media-handle
 
 # ── install dependencies ──────────────────────────────────────────────────────
 echo "Installing dependencies…"
+# openjdk-21 lives in bookworm-backports on Debian 12
+echo "deb http://deb.debian.org/debian bookworm-backports main" \
+  > /etc/apt/sources.list.d/backports.list
 apt-get update -qq
-apt-get install -y -qq openjdk-21-jre-headless curl
+apt-get install -y -qq -t bookworm-backports openjdk-21-jre-headless
+apt-get install -y -qq curl
 
 # ── download JAR ──────────────────────────────────────────────────────────────
 echo "Downloading media-handler.jar from ${JAR_URL}…"
