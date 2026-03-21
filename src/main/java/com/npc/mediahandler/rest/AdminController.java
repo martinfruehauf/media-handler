@@ -1,14 +1,15 @@
 package com.npc.mediahandler.rest;
 
 import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.Map;
+import java.util.zip.ZipFile;
 
-import org.springframework.boot.SpringApplication;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -43,16 +44,27 @@ public class AdminController {
             try {
                 Thread.sleep(500); // let HTTP response reach the client first
                 log.info("Downloading update from {}", JAR_URL);
-                try (InputStream in = URI.create(JAR_URL).toURL().openStream()) {
+                HttpURLConnection conn = (HttpURLConnection) URI.create(JAR_URL).toURL().openConnection();
+                conn.setInstanceFollowRedirects(true);
+                int status = conn.getResponseCode();
+                if (status != HttpURLConnection.HTTP_OK) {
+                    throw new RuntimeException("Download failed: HTTP " + status);
+                }
+                try (InputStream in = conn.getInputStream()) {
                     Files.copy(in, tmpJar, StandardCopyOption.REPLACE_EXISTING);
                 }
-                log.info("Download complete — replacing JAR and restarting");
+                // Verify the downloaded file is a valid ZIP/JAR before replacing
+                try (ZipFile zip = new ZipFile(tmpJar.toFile())) {
+                    if (zip.size() == 0) throw new RuntimeException("Downloaded JAR is empty");
+                }
+                log.info("Download verified ({} bytes) — replacing JAR and restarting",
+                        Files.size(tmpJar));
                 Files.move(tmpJar, currentJar,
                         StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
                 // Force non-zero exit so systemd restarts the service
                 System.exit(1);
             } catch (Exception e) {
-                log.error("Self-update failed", e);
+                log.error("Self-update failed — keeping existing JAR", e);
                 try { Files.deleteIfExists(tmpJar); } catch (Exception ignored) {}
             }
         }, "self-update").start();
