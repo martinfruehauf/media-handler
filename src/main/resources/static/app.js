@@ -127,7 +127,7 @@ async function rescanSourceFolder() {
     toast('Rescan failed', 'error');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '&#8635; Rescan';
+    btn.innerHTML = '&#8635; Reprocess';
   }
 }
 
