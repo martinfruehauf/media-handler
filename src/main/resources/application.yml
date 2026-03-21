@@ -29,9 +29,6 @@ spring:
       path: /h2-console
 
 media:
-  source-folder: /tmp/projects/source
-  target-folder-movies: /tmp/projects/target/movies
-  target-folder-shows: /tmp/projects/target/shows
   file-extensions:
     - mkv
     - mp4

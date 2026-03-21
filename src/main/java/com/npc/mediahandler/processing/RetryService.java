@@ -23,9 +23,14 @@ public class RetryService {
     private final MediaFileRepository repository;
     private final FileProcessingService fileProcessingService;
     private final MediaProperties properties;
+    private final ProcessingGateService gate;
 
     @Scheduled(fixedDelayString = "${media.retry.interval-ms:300000}")
     public void retryFailed() {
+        if (!gate.isRunning()) {
+            log.debug("Processing stopped — skipping retry scan");
+            return;
+        }
         if (!properties.getRetry().isEnabled()) {
             return;
         }

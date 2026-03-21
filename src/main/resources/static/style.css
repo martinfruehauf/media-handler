@@ -76,6 +76,97 @@ nav {
 .nav-btn:hover { color: var(--text); background: var(--surface2); }
 .nav-btn.active { color: var(--text); background: var(--surface2); }
 
+/* ── Pipeline control bar (top of Logs tab) ── */
+.pipeline-control-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.pipeline-status {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 99px;
+}
+.pipeline-status.running {
+  background: rgba(34,197,94,.15);
+  color: #22c55e;
+}
+.pipeline-status.stopped {
+  background: rgba(239,68,68,.15);
+  color: #ef4444;
+}
+
+.pipeline-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  font-size: 9px;
+  transition: background .15s, transform .1s;
+}
+.pipeline-btn:active { transform: scale(.93); }
+.pipeline-btn.btn-stop {
+  background: #ef4444;
+  color: #fff;
+}
+.pipeline-btn.btn-stop:hover { background: #dc2626; }
+.pipeline-btn.btn-play {
+  background: #22c55e;
+  color: #fff;
+}
+.pipeline-btn.btn-play:hover { background: #16a34a; }
+
+/* ── Developer settings (collapsible) ── */
+.dev-settings {
+  margin-top: 24px;
+  border-top: 1px solid var(--border);
+  padding-top: 4px;
+}
+
+.dev-settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  cursor: pointer;
+  user-select: none;
+}
+.dev-settings-header:hover { color: var(--text); }
+
+.dev-settings-chevron {
+  font-size: 10px;
+  transition: transform .2s;
+}
+.dev-settings-chevron.open { transform: rotate(90deg); }
+
+.dev-settings-body {
+  display: none;
+  padding: 4px 0 16px;
+}
+
+.dev-settings-desc {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin: 0;
+}
+.dev-settings-desc strong { color: var(--text); }
+.dev-settings-desc em { font-style: normal; color: var(--text); }
+
 main {
   max-width: 1100px;
   margin: 0 auto;
@@ -516,4 +607,67 @@ tr.clickable:hover td { background: var(--surface2); }
   .stats { grid-template-columns: repeat(2, 1fr); }
   header { padding: 0 16px; }
   main { padding: 20px 16px; }
+}
+
+/* ── First-run setup overlay ── */
+.setup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, .65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.setup-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.setup-logo {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+
+.setup-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+
+.setup-subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 24px;
+}
+
+.setup-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+  margin: 20px 0 8px;
+}
+
+.setup-optional {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.setup-error {
+  color: #ef4444;
+  font-size: 13px;
+  margin-top: 8px;
 }

@@ -11,7 +11,12 @@ let dateFormat = localStorage.getItem('dateFormat') || 'YYYY-MM-DD';
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  checkSetupNeeded();
   switchTab('logs');
+  loadControlState();
+  const pipelineVisible = localStorage.getItem('pipelineControlVisible') === 'true';
+  document.getElementById('dev-pipeline-visible').checked = pipelineVisible;
+  document.getElementById('pipeline-control-bar').style.display = pipelineVisible ? 'flex' : 'none';
   loadRecords();
   loadSourceFiles();
   setInterval(() => { loadRecords(); loadSourceFiles(); }, 15_000);
@@ -233,6 +238,64 @@ function renderDetail(id) {
   `;
 }
 
+// ── Pipeline control ─────────────────────────────────────────────────────────
+let pipelineRunning = true;
+
+async function loadControlState() {
+  try {
+    const res = await fetch('/api/control');
+    const data = await res.json();
+    applyControlState(data.running);
+  } catch (e) {
+    console.error('Failed to load control state', e);
+  }
+}
+
+async function togglePipeline() {
+  const btn = document.getElementById('pipeline-btn');
+  btn.disabled = true;
+  const desired = !pipelineRunning;
+  try {
+    const res = await fetch('/api/control', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ running: desired }),
+    });
+    const data = await res.json();
+    applyControlState(data.running);
+    if (data.running) {
+      toast('Pipeline started — re-scanning source folder', 'success');
+      loadRecords();
+      loadSourceFiles();
+    } else {
+      toast('Pipeline stopped', 'error');
+    }
+  } catch (e) {
+    toast('Failed to change pipeline state', 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function applyControlState(running) {
+  pipelineRunning = running;
+  const status = document.getElementById('pipeline-status');
+  const btn    = document.getElementById('pipeline-btn');
+  if (running) {
+    status.textContent = 'Running';
+    status.className = 'pipeline-status running';
+    btn.textContent = '■';
+    btn.className = 'pipeline-btn btn-stop';
+    btn.title = 'Stop processing';
+  } else {
+    status.textContent = 'Stopped';
+    status.className = 'pipeline-status stopped';
+    btn.textContent = '▶';
+    btn.className = 'pipeline-btn btn-play';
+    btn.title = 'Start processing';
+  }
+}
+
 // ── Settings ─────────────────────────────────────────────────────────────────
 async function loadConfig() {
   try {
@@ -260,6 +323,19 @@ function applyConfig() {
 
   const provider = config['llm.provider'] || 'openai';
   selectProvider(provider, false);
+}
+
+function toggleDevSettings() {
+  const body    = document.getElementById('dev-settings-body');
+  const chevron = document.getElementById('dev-settings-chevron');
+  const open    = body.style.display === 'block';
+  body.style.display = open ? 'none' : 'block';
+  chevron.classList.toggle('open', !open);
+}
+
+function setPipelineControlVisible(visible) {
+  document.getElementById('pipeline-control-bar').style.display = visible ? 'flex' : 'none';
+  localStorage.setItem('pipelineControlVisible', visible);
 }
 
 function toggleDeleteAfter() {
@@ -386,4 +462,61 @@ function toast(msg, type) {
   el.className = `toast show ${type}`;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ── First-run setup wizard ────────────────────────────────────────────────────
+let suProvider = 'openai';
+
+async function checkSetupNeeded() {
+  try {
+    const res = await fetch('/api/setup-status');
+    const { needsSetup } = await res.json();
+    if (needsSetup) {
+      document.getElementById('setup-overlay').style.display = 'flex';
+      document.querySelector('nav').style.visibility = 'hidden';
+    }
+  } catch (e) { /* silent — don't block normal load on error */ }
+}
+
+function suSelectProvider(p) {
+  suProvider = p;
+  document.querySelectorAll('#setup-overlay .provider-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.provider === p);
+  });
+  document.getElementById('su-llm-url-field').style.display = p !== 'anthropic' ? '' : 'none';
+}
+
+async function saveSetup() {
+  const source = getVal('su-source'), movies = getVal('su-movies'),
+        shows  = getVal('su-shows'),  tmdb   = getVal('su-tmdb');
+  if (!source || !movies || !shows || !tmdb) {
+    showSetupError('Source folder, both target folders, and TMDB key are required.');
+    return;
+  }
+  const payload = {
+    'source.folder':        source,
+    'target.folder.movies': movies,
+    'target.folder.shows':  shows,
+    'tmdb.api-key':         tmdb,
+    'llm.provider':         suProvider,
+    'llm.api-key':          getVal('su-llm-key') || 'ollama',
+    'llm.base-url':         getVal('su-llm-url') || 'http://localhost:11434',
+    'llm.model':            getVal('su-llm-model') || 'qwen2.5:14b',
+  };
+  try {
+    await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    document.getElementById('setup-overlay').style.display = 'none';
+    document.querySelector('nav').style.visibility = '';
+    loadRecords();
+    loadSourceFiles();
+    toast('Setup complete — MediaHandler is running', 'success');
+  } catch (e) {
+    showSetupError('Failed to save settings. Please try again.');
+  }
+}
+
+function showSetupError(msg) {
+  const el = document.getElementById('setup-error');
+  el.textContent = msg;
+  el.style.display = 'block';
 }

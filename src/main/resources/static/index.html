@@ -21,10 +21,46 @@
   </nav>
 </header>
 
+<div id="setup-overlay" class="setup-overlay" style="display:none;">
+  <div class="setup-card">
+    <div class="setup-logo">&#9654; MediaHandler</div>
+    <h2 class="setup-title">Welcome — let's get you started</h2>
+    <p class="setup-subtitle">Configure your folders and API keys. You can change these later in Settings.</p>
+
+    <div class="setup-section-label">Folders</div>
+    <div class="field"><label>Source Folder</label><input id="su-source" type="text" placeholder="/mnt/nas/downloads" /></div>
+    <div class="field"><label>Target — Movies</label><input id="su-movies" type="text" placeholder="/mnt/nas/movies" /></div>
+    <div class="field"><label>Target — Shows</label><input id="su-shows" type="text" placeholder="/mnt/nas/shows" /></div>
+
+    <div class="setup-section-label">TMDB</div>
+    <div class="field"><label>API Key (Bearer Token)</label><input id="su-tmdb" type="password" placeholder="eyJ..." /></div>
+
+    <div class="setup-section-label">LLM <span class="setup-optional">(optional — can be set later)</span></div>
+    <div class="field">
+      <label>Provider</label>
+      <div class="provider-toggle">
+        <button class="provider-btn active" data-provider="openai" onclick="suSelectProvider('openai')">OpenAI / Ollama</button>
+        <button class="provider-btn" data-provider="anthropic" onclick="suSelectProvider('anthropic')">Anthropic</button>
+      </div>
+    </div>
+    <div class="field"><label>API Key</label><input id="su-llm-key" type="password" placeholder="sk-... or ollama" /></div>
+    <div class="field" id="su-llm-url-field"><label>Base URL</label><input id="su-llm-url" type="text" placeholder="http://localhost:11434" /></div>
+    <div class="field"><label>Model</label><input id="su-llm-model" type="text" placeholder="qwen2.5:14b" /></div>
+
+    <button class="save-btn" style="width:100%;margin-top:8px;" onclick="saveSetup()">Save &amp; Start</button>
+    <p id="setup-error" class="setup-error" style="display:none;"></p>
+  </div>
+</div>
+
 <main>
 
   <!-- Logs tab -->
   <div class="tab" id="tab-logs">
+
+    <div class="pipeline-control-bar" id="pipeline-control-bar" style="display:none;">
+      <span class="pipeline-status" id="pipeline-status"></span>
+      <button class="pipeline-btn" id="pipeline-btn" onclick="togglePipeline()"></button>
+    </div>
 
     <div class="section-title">
       Source Folder
@@ -209,6 +245,28 @@
 
     <button class="save-btn" onclick="saveSettings()">Save Settings</button>
     <button class="delete-logs-btn" onclick="deleteLogs()">Delete All Logs</button>
+
+    <div class="dev-settings">
+      <div class="dev-settings-header" onclick="toggleDevSettings()">
+        Developer Tools
+        <span class="dev-settings-chevron" id="dev-settings-chevron">&#9656;</span>
+      </div>
+      <div class="dev-settings-body" id="dev-settings-body">
+        <p class="dev-settings-desc">
+          <strong>What does "Running / Stopped" mean?</strong><br>
+          When the pipeline is <em>running</em>, the service actively watches the source folder for new media files and automatically retries failed jobs on a schedule. It is the normal operating mode.<br><br>
+          When the pipeline is <em>stopped</em>, the file monitor and retry scheduler are paused — no new files will be picked up and no retries will happen. Files already in progress will finish, but nothing new starts. Existing records and logs are untouched.<br><br>
+          <strong>Play ▶</strong> — Resumes the pipeline. All previous file-tracking state is discarded and the source folder is re-scanned from scratch, so any files sitting there will be picked up as if they were just detected.<br>
+          <strong>Stop ■</strong> — Pauses the pipeline immediately. Use this if you need to move files manually, change settings, or troubleshoot without the service interfering.
+        </p>
+        <div class="field field--checkbox" style="margin-top:14px;">
+          <label>
+            <input id="dev-pipeline-visible" type="checkbox" onchange="setPipelineControlVisible(this.checked)" />
+            Show pipeline controls in the Logs view
+          </label>
+        </div>
+      </div>
+    </div>
 
   </div>
 
