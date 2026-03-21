@@ -115,10 +115,10 @@ SUMMARY="Container ID : $CTID
 Hostname     : $HOSTNAME
 Type         : $( [[ "$UNPRIVILEGED" == "Y" ]] && echo "Unprivileged" || echo "Privileged" )
 Disk         : ${DISK_SIZE} GB   RAM: ${RAM} MB   CPU: ${CPU_CORES} cores
-Bridge       : $BRIDGE$( [[ -n "$VLAN" ]] && echo " tag $VLAN" )
-IPv4         : $IPV4_ADDR$( [[ -n "$GATEWAY" ]] && echo "  GW: $GATEWAY" )
+Bridge       : $BRIDGE$( [[ -n "$VLAN" ]] && echo " tag $VLAN" || true )
+IPv4         : $IPV4_ADDR$( [[ -n "$GATEWAY" ]] && echo "  GW: $GATEWAY" || true )
 IPv6         : $( [[ "$DISABLE_IPV6" == "Y" ]] && echo "disabled" || echo "enabled" )
-SSH access   : $( [[ "$SSH_ACCESS" == "Y" ]] && echo "yes" || echo "no" )$( [[ -n "$MAC" ]] && echo "\nMAC          : $MAC" )$( [[ -n "$MTU" ]] && echo "\nMTU          : $MTU" )$( [[ -n "$DNS_SERVER" ]] && echo "\nDNS          : $DNS_SERVER" )"
+SSH access   : $( [[ "$SSH_ACCESS" == "Y" ]] && echo "yes" || echo "no" )$( [[ -n "$MAC" ]] && echo "\nMAC          : $MAC" || true )$( [[ -n "$MTU" ]] && echo "\nMTU          : $MTU" || true )$( [[ -n "$DNS_SERVER" ]] && echo "\nDNS          : $DNS_SERVER" || true )"
 
 whiptail --backtitle "$TITLE" --title "Summary" \
   --yesno "$SUMMARY
@@ -138,12 +138,12 @@ fi
 NET0="name=eth0,bridge=${BRIDGE}"
 [[ "$IPV4_ADDR" == "dhcp" ]] && NET0+=",ip=dhcp" || NET0+=",ip=${IPV4_ADDR},gw=${GATEWAY}"
 [[ "$DISABLE_IPV6" == "Y" ]] && NET0+=",ip6=manual" || NET0+=",ip6=auto"
-[[ -n "$VLAN" ]] && NET0+=",tag=${VLAN}"
-[[ -n "$MAC"  ]] && NET0+=",hwaddr=${MAC}"
-[[ -n "$MTU"  ]] && NET0+=",mtu=${MTU}"
+[[ -n "$VLAN" ]] && NET0+=",tag=${VLAN}"   || true
+[[ -n "$MAC"  ]] && NET0+=",hwaddr=${MAC}" || true
+[[ -n "$MTU"  ]] && NET0+=",mtu=${MTU}"    || true
 
 # ── build pct create args ─────────────────────────────────────────────────────
-UNPRIV_FLAG=1; [[ "$UNPRIVILEGED" == "N" ]] && UNPRIV_FLAG=0
+UNPRIV_FLAG=1; [[ "$UNPRIVILEGED" == "N" ]] && UNPRIV_FLAG=0 || true
 
 PCT_ARGS=(
   "$CTID" "local:vztmpl/${TEMPLATE}"
@@ -157,9 +157,9 @@ PCT_ARGS=(
   --features nesting=1
   --start 0
 )
-[[ -n "$DNS_SERVER" ]] && PCT_ARGS+=(--nameserver "$DNS_SERVER")
-[[ -n "$DNS_SEARCH" ]] && PCT_ARGS+=(--searchdomain "$DNS_SEARCH")
-[[ "$SSH_ACCESS" == "Y" ]] && PCT_ARGS+=(--ssh-public-keys /root/.ssh/authorized_keys 2>/dev/null || true)
+[[ -n "$DNS_SERVER" ]] && PCT_ARGS+=(--nameserver "$DNS_SERVER")   || true
+[[ -n "$DNS_SEARCH" ]] && PCT_ARGS+=(--searchdomain "$DNS_SEARCH") || true
+[[ "$SSH_ACCESS" == "Y" ]] && PCT_ARGS+=(--ssh-public-keys /root/.ssh/authorized_keys) || true
 
 # ── create LXC ────────────────────────────────────────────────────────────────
 echo
