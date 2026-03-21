@@ -1,5 +1,6 @@
 package com.npc.mediahandler.processing;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,4 +26,7 @@ public interface MediaFileRepository extends JpaRepository<MediaFileRecord, Long
     List<MediaFileRecord> findLatestRetryable(
             @Param("statuses") List<MediaFileStatus> statuses,
             @Param("maxRetries") int maxRetries);
+
+    /** Records whose source file is due for deletion. */
+    List<MediaFileRecord> findBySourceDeleteAfterBefore(Instant cutoff);
 }

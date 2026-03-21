@@ -58,4 +58,10 @@ public class MediaFileRecord {
     /** JSON array of ProcessingNote, nullable. Populated after each pipeline run. */
     @Column(columnDefinition = "TEXT")
     private String processingNotes;
+
+    /**
+     * When set, the cleanup scheduler will delete the source file at this time.
+     * Only populated when copy mode is active and a delete-after delay is configured.
+     */
+    private Instant sourceDeleteAfter;
 }

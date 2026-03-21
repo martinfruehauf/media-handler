@@ -1,5 +1,6 @@
 package com.npc.mediahandler.processing;
 
+import static java.nio.file.StandardCopyOption.COPY_ATTRIBUTES;
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
 
 import java.io.IOException;
@@ -61,8 +62,15 @@ public class FileRenameService {
             }
         }
 
-        Files.move(source, targetFile, REPLACE_EXISTING);
-        log.info("Moved: {} → {}", source, targetFile);
+        boolean copyMode = Boolean.parseBoolean(
+                configService.getOrDefault(AppConfigService.FILE_COPY_MODE, "false"));
+        if (copyMode) {
+            Files.copy(source, targetFile, REPLACE_EXISTING, COPY_ATTRIBUTES);
+            log.info("Copied: {} → {}", source, targetFile);
+        } else {
+            Files.move(source, targetFile, REPLACE_EXISTING);
+            log.info("Moved: {} → {}", source, targetFile);
+        }
         return Optional.of(targetFile);
     }
 }

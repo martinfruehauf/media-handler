@@ -219,6 +219,10 @@ function renderDetail(id) {
       <span class="detail-label">Processed</span>
       <span class="detail-value">${fmtDateFull(r.processedAt)}</span>` : ''}
 
+      ${r.sourceDeleteAfter ? `
+      <span class="detail-label">Original deletion</span>
+      <span class="detail-value">${fmtDateFull(r.sourceDeleteAfter)}</span>` : ''}
+
       ${r.processingNotes ? `
       <span class="detail-label" style="grid-column:1/-1; margin-top:8px; font-size:11px; text-transform:uppercase; letter-spacing:.05em;">Processing Steps</span>
       ${JSON.parse(r.processingNotes).map(n => `
@@ -249,10 +253,18 @@ function applyConfig() {
   setVal('cfg-llm-base-url',  config['llm.base-url']);
   setVal('cfg-llm-model',     config['llm.model']);
   document.getElementById('cfg-file-overwrite').checked = config['file.overwrite'] === 'true';
+  document.getElementById('cfg-file-copy-mode').checked = config['file.copy.mode'] === 'true';
+  setVal('cfg-file-delete-original-after-hours', config['file.delete.original.after.hours'] || '0');
+  toggleDeleteAfter();
   document.getElementById('cfg-wiki-title-lookup').checked = config['wiki.title.lookup'] === 'true';
 
   const provider = config['llm.provider'] || 'openai';
   selectProvider(provider, false);
+}
+
+function toggleDeleteAfter() {
+  const copyMode = document.getElementById('cfg-file-copy-mode').checked;
+  document.getElementById('delete-after-field').style.display = copyMode ? '' : 'none';
 }
 
 function selectProvider(p, save) {
@@ -288,6 +300,8 @@ async function saveSettings() {
     'llm.base-url':   getVal('cfg-llm-base-url'),
     'llm.model':      getVal('cfg-llm-model'),
     'file.overwrite': document.getElementById('cfg-file-overwrite').checked.toString(),
+    'file.copy.mode': document.getElementById('cfg-file-copy-mode').checked.toString(),
+    'file.delete.original.after.hours': getVal('cfg-file-delete-original-after-hours') || '0',
     'wiki.title.lookup': document.getElementById('cfg-wiki-title-lookup').checked.toString(),
   };
 
