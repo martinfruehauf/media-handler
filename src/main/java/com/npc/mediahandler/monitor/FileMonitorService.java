@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 
 import com.npc.mediahandler.config.AppConfigService;
 import com.npc.mediahandler.config.MediaProperties;
+import com.npc.mediahandler.processing.ProcessingGateService;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
@@ -26,6 +27,7 @@ public class FileMonitorService {
     private final MediaProperties properties;
     private final AppConfigService configService;
     private final ApplicationEventPublisher eventPublisher;
+    private final ProcessingGateService gate;
 
     /** Last observed size per file. Updated whenever the size changes. */
     private final Map<Path, Long> lastSeenSizes = new HashMap<>();
@@ -37,14 +39,30 @@ public class FileMonitorService {
     private final Set<Path> publishedFiles = new HashSet<>();
 
     public FileMonitorService(MediaProperties properties, AppConfigService configService,
-            ApplicationEventPublisher eventPublisher) {
+            ApplicationEventPublisher eventPublisher, ProcessingGateService gate) {
         this.properties = properties;
         this.configService = configService;
         this.eventPublisher = eventPublisher;
+        this.gate = gate;
+    }
+
+    /**
+     * Clears all tracking state so the next scheduled scan treats every source file
+     * as newly discovered. Called when the pipeline is resumed after a stop.
+     */
+    public synchronized void resetTracking() {
+        lastSeenSizes.clear();
+        sizeStableSince.clear();
+        publishedFiles.clear();
+        log.info("File tracking state reset — next scan will re-evaluate all source files");
     }
 
     @Scheduled(fixedDelayString = "${media.poll-interval-ms:30000}")
-    public void scan() {
+    public synchronized void scan() {
+        if (!gate.isRunning()) {
+            log.debug("Processing stopped — skipping scan");
+            return;
+        }
         String sourceFolderPath = configService.getOrDefault(AppConfigService.SOURCE_FOLDER,
                 properties.getSourceFolder());
         if (sourceFolderPath == null || sourceFolderPath.isBlank()) {
