@@ -2,8 +2,9 @@
 # setup-lxc.sh — run on the Proxmox host to create and provision a MediaHandler LXC
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TITLE="MediaHandler LXC"
+GITHUB_REPO="martinfruehauf/media-handler"
+INSTALL_URL="https://raw.githubusercontent.com/${GITHUB_REPO}/main/scripts/install.sh"
 
 # ── colour helpers (used after whiptail, during provisioning) ─────────────────
 YW='\033[33m' GN='\033[1;92m' RD='\033[01;31m' CL='\033[m'
@@ -11,6 +12,8 @@ CM="${GN}✓${CL}" CROSS="${RD}✗${CL}"
 msg_info()  { echo -e " ${YW}… $1${CL}"; }
 msg_ok()    { echo -e " ${CM} $1"; }
 msg_error() { echo -e " ${CROSS} $1"; exit 1; }
+
+trap 'msg_error "Script failed on line $LINENO"' ERR
 
 # ── whiptail helpers ──────────────────────────────────────────────────────────
 # All whiptail output goes to stdout via the 3>&1 1>&2 2>&3 redirect trick.
@@ -126,8 +129,8 @@ Proceed with creation?" 26 62 || exit 0
 TEMPLATE="debian-12-standard_12.7-1_amd64.tar.zst"
 if ! pveam list local 2>/dev/null | grep -q "debian-12-standard"; then
   msg_info "Downloading Debian 12 template"
-  pveam update >/dev/null
-  pveam download local "$TEMPLATE" >/dev/null
+  pveam update
+  pveam download local "$TEMPLATE"
   msg_ok "Template downloaded"
 fi
 
@@ -170,12 +173,9 @@ sleep 5
 msg_ok "Container started"
 
 # ── install app inside container ──────────────────────────────────────────────
-msg_info "Pushing install script"
-pct push "$CTID" "${SCRIPT_DIR}/install.sh" /tmp/install.sh
-pct exec "$CTID" -- chmod +x /tmp/install.sh
-msg_ok "Running installer"
-pct exec "$CTID" -- bash /tmp/install.sh \
-  --github-repo martinfruehauf/media-handler
+msg_info "Downloading and running installer inside container"
+pct exec "$CTID" -- bash -c \
+  "curl -fsSL '${INSTALL_URL}' -o /tmp/install.sh && bash /tmp/install.sh --github-repo ${GITHUB_REPO}"
 
 # ── done ──────────────────────────────────────────────────────────────────────
 echo
