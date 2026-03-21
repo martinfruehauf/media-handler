@@ -1,4 +1,44 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" rx="6" fill="#0d0d11"/>
-  <polygon points="11,8 25,16 11,24" fill="#6366f1"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="skin" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f59e0b"></stop>
+      <stop offset="100%" stop-color="#fb923c"></stop>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect x="4" y="4" width="56" height="56" rx="14" fill="#0b1220"></rect>
+
+  <!-- Pirate hat (strong silhouette) -->
+  <path d="M14 26
+           Q32 10 50 26
+           L46 30
+           Q32 20 18 30 Z" fill="#111827"></path>
+
+  <!-- Skull hint on hat -->
+  <circle cx="32" cy="24" r="2" fill="#e5e7eb"></circle>
+  <rect x="30.5" y="26" width="3" height="2" rx="0.5" fill="#e5e7eb"></rect>
+
+  <!-- Face -->
+  <circle cx="32" cy="34" r="9" fill="url(#skin)"></circle>
+
+  <!-- Eye -->
+  <circle cx="35" cy="33" r="2.6" fill="#ffffff"></circle>
+  <circle cx="36" cy="33" r="1.2" fill="#0b1220"></circle>
+
+  <!-- Mustache (key dwarf feature) -->
+  <path d="M24 36 Q28 40 32 36 Q36 40 40 36" stroke="#7c2d12" stroke-width="3" fill="none" stroke-linecap="round"></path>
+
+  <!-- Big beard (clear dwarf identity) -->
+  <path d="M20 38
+           Q32 56 44 38
+           Q40 58 32 58
+           Q24 58 20 38 Z" fill="#7c2d12"></path>
+
+  <!-- Sparkle (AI cleaning) -->
+  <polygon points="16,18 18,22 22,24 18,26 16,30 14,26 10,24 14,22" fill="#22c55e"></polygon>
+
+  <!-- Motion arrow (file moving) -->
+  <path d="M20 46 Q32 60 44 46" stroke="#e5e7eb" stroke-width="2" fill="none"></path>
+  <polygon points="42,43 50,46 42,49" fill="#e5e7eb"></polygon>
 </svg>
