@@ -107,16 +107,6 @@ w_input   MTU        "MTU size (leave blank for default)" ""
 w_input   DNS_SERVER "DNS server IP (leave blank for default)" ""
 w_input   DNS_SEARCH "DNS search domain (leave blank to skip)" ""
 
-# ── folders ───────────────────────────────────────────────────────────────────
-w_required SOURCE_FOLDER        "Source folder on Proxmox host
-(e.g. /mnt/media/downloads)" ""
-
-w_required TARGET_FOLDER_MOVIES "Target folder for MOVIES on Proxmox host
-(e.g. /mnt/media/movies)" ""
-
-w_required TARGET_FOLDER_SHOWS  "Target folder for SHOWS on Proxmox host
-(e.g. /mnt/media/shows)" ""
-
 # ── summary + confirm ─────────────────────────────────────────────────────────
 SUMMARY="Container ID : $CTID
 Hostname     : $HOSTNAME
@@ -125,11 +115,7 @@ Disk         : ${DISK_SIZE} GB   RAM: ${RAM} MB   CPU: ${CPU_CORES} cores
 Bridge       : $BRIDGE$( [[ -n "$VLAN" ]] && echo " tag $VLAN" )
 IPv4         : $IPV4_ADDR$( [[ -n "$GATEWAY" ]] && echo "  GW: $GATEWAY" )
 IPv6         : $( [[ "$DISABLE_IPV6" == "Y" ]] && echo "disabled" || echo "enabled" )
-SSH access   : $( [[ "$SSH_ACCESS" == "Y" ]] && echo "yes" || echo "no" )$( [[ -n "$MAC" ]] && echo "\nMAC          : $MAC" )$( [[ -n "$MTU" ]] && echo "\nMTU          : $MTU" )$( [[ -n "$DNS_SERVER" ]] && echo "\nDNS          : $DNS_SERVER" )
-
-Source       : $SOURCE_FOLDER
-Movies       : $TARGET_FOLDER_MOVIES
-Shows        : $TARGET_FOLDER_SHOWS"
+SSH access   : $( [[ "$SSH_ACCESS" == "Y" ]] && echo "yes" || echo "no" )$( [[ -n "$MAC" ]] && echo "\nMAC          : $MAC" )$( [[ -n "$MTU" ]] && echo "\nMTU          : $MTU" )$( [[ -n "$DNS_SERVER" ]] && echo "\nDNS          : $DNS_SERVER" )"
 
 whiptail --backtitle "$TITLE" --title "Summary" \
   --yesno "$SUMMARY
@@ -178,13 +164,6 @@ msg_info "Creating container $CTID"
 pct create "${PCT_ARGS[@]}" >/dev/null
 msg_ok "Container created"
 
-mkdir -p "$SOURCE_FOLDER" "$TARGET_FOLDER_MOVIES" "$TARGET_FOLDER_SHOWS"
-pct set "$CTID" \
-  --mp0 "${SOURCE_FOLDER},mp=/mnt/source" \
-  --mp1 "${TARGET_FOLDER_MOVIES},mp=/mnt/movies" \
-  --mp2 "${TARGET_FOLDER_SHOWS},mp=/mnt/shows"
-msg_ok "Bind mounts configured"
-
 msg_info "Starting container"
 pct start "$CTID"
 sleep 5
@@ -196,9 +175,6 @@ pct push "$CTID" "${SCRIPT_DIR}/install.sh" /tmp/install.sh
 pct exec "$CTID" -- chmod +x /tmp/install.sh
 msg_ok "Running installer"
 pct exec "$CTID" -- bash /tmp/install.sh \
-  --source /mnt/source \
-  --target-movies /mnt/movies \
-  --target-shows /mnt/shows \
   --github-repo martinfruehauf/media-handler
 
 # ── done ──────────────────────────────────────────────────────────────────────

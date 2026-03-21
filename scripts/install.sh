@@ -3,17 +3,11 @@
 set -euo pipefail
 
 GITHUB_REPO="martinfruehauf/media-handler"
-SOURCE_DIR="/mnt/source"
-TARGET_DIR_MOVIES="/mnt/movies"
-TARGET_DIR_SHOWS="/mnt/shows"
 
 # ── parse arguments ───────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --source)        SOURCE_DIR="$2";        shift 2 ;;
-    --target-movies) TARGET_DIR_MOVIES="$2"; shift 2 ;;
-    --target-shows)  TARGET_DIR_SHOWS="$2";  shift 2 ;;
-    --github-repo)   GITHUB_REPO="$2";       shift 2 ;;
+    --github-repo) GITHUB_REPO="$2"; shift 2 ;;
     *) echo "Unknown argument: $1"; exit 1 ;;
   esac
 done
@@ -40,11 +34,7 @@ mkdir -p /opt/mediahandler/data
 chown -R mediahandler:mediahandler /opt/mediahandler
 
 # ── environment file ──────────────────────────────────────────────────────────
-cat > /etc/mediahandler.env <<EOF
-MEDIA_SOURCE_FOLDER=${SOURCE_DIR}
-MEDIA_TARGET_FOLDER_MOVIES=${TARGET_DIR_MOVIES}
-MEDIA_TARGET_FOLDER_SHOWS=${TARGET_DIR_SHOWS}
-EOF
+touch /etc/mediahandler.env
 chmod 640 /etc/mediahandler.env
 
 # ── systemd service ───────────────────────────────────────────────────────────
@@ -78,7 +68,5 @@ echo "  Web UI:  http://${CONTAINER_IP}:8080"
 echo
 echo "Next steps:"
 echo "  1. Open http://${CONTAINER_IP}:8080 in your browser"
-echo "  2. Go to Settings and enter your TMDB API key and LLM URL"
-echo "  3. Drop a media file into ${SOURCE_DIR} to start processing
-     Movies → ${TARGET_DIR_MOVIES}
-     Shows  → ${TARGET_DIR_SHOWS}"
+echo "  2. Complete the setup wizard — enter your folder paths and TMDB API key"
+echo "  3. Drop a media file into your source folder to start processing"

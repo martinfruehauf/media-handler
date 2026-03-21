@@ -76,12 +76,12 @@ nav {
 .nav-btn:hover { color: var(--text); background: var(--surface2); }
 .nav-btn.active { color: var(--text); background: var(--surface2); }
 
-/* ── Pipeline control (lives inside dev settings) ── */
-.dev-pipeline-control {
+/* ── Pipeline control bar (top of Logs tab) ── */
+.pipeline-control-bar {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-top: 12px;
+  margin-bottom: 20px;
 }
 
 .pipeline-status {
@@ -607,4 +607,67 @@ tr.clickable:hover td { background: var(--surface2); }
   .stats { grid-template-columns: repeat(2, 1fr); }
   header { padding: 0 16px; }
   main { padding: 20px 16px; }
+}
+
+/* ── First-run setup overlay ── */
+.setup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  background: rgba(0, 0, 0, .65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.setup-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 32px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.setup-logo {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+
+.setup-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 6px;
+}
+
+.setup-subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  margin: 0 0 24px;
+}
+
+.setup-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+  margin: 20px 0 8px;
+}
+
+.setup-optional {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.setup-error {
+  color: #ef4444;
+  font-size: 13px;
+  margin-top: 8px;
 }

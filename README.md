@@ -6,13 +6,33 @@ A Spring Boot service that watches a source folder for new media files, parses t
 
 ## Deploy on Proxmox (LXC)
 
-Run this on your Proxmox host — it will ask all configuration questions, create a Debian 12 LXC, and start the app as a systemd service:
+Run this on your Proxmox host — it creates a Debian 12 LXC container and starts the app as a systemd service:
 
 ```bash
 bash <(curl -s https://raw.githubusercontent.com/martinfruehauf/media-handler/main/scripts/setup-lxc.sh)
 ```
 
-After setup, open `http://<container-ip>:8080` and configure your TMDB API key and LLM URL in the Settings tab.
+The script asks only for container/network settings (ID, hostname, password, disk, RAM, CPU, bridge, IP). It does **not** ask for folder paths — those are configured after the container is running, once your NAS mounts are in place.
+
+After setup, open `http://<container-ip>:8080` to complete the **first-run setup wizard**.
+
+---
+
+## First-run setup wizard
+
+On the first visit after a fresh install the UI shows a full-screen setup overlay. It will not appear again once you have saved your configuration.
+
+The wizard collects:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| Source Folder | ✓ | Path the service watches for new media (e.g. `/mnt/nas/downloads`) |
+| Target — Movies | ✓ | Root folder for processed movies (e.g. `/mnt/nas/movies`) |
+| Target — Shows | ✓ | Root folder for processed shows (e.g. `/mnt/nas/shows`) |
+| TMDB API Key | ✓ | Bearer token from [themoviedb.org](https://www.themoviedb.org/settings/api) |
+| LLM Provider / Key / URL / Model | — | Optional at setup; can be configured later in Settings |
+
+All values can be changed at any time in the **Settings** tab.
 
 ---
 
@@ -63,20 +83,20 @@ Every processing attempt is persisted in an H2 database. Each step is recorded a
 
 Configuration works in two layers:
 
-1. **application.yml / environment variables** — seed values used the first time the service starts and whenever a stored value is still a placeholder.
-2. **Web UI (Settings tab)** — once you save a value through the UI it is written to the H2 database and takes precedence. Restarting the service does **not** overwrite values you have already saved through the UI.
+1. **application.yml / environment variables** — seed values used the first time the service starts and whenever a stored value is still a placeholder. Source/target folders and TMDB key have no default in `application.yml` — they must be entered in the setup wizard or Settings tab.
+2. **Web UI (setup wizard / Settings tab)** — values are written to the H2 database and take precedence. Restarting the service does **not** overwrite values you have already saved through the UI.
 
 ### application.yml reference
 
 | Key | Default | Description |
 |-----|---------|-------------|
-| `media.source-folder` | — | Folder to watch for new media files |
-| `media.target-folder-movies` | — | Root folder movies are moved/copied into |
-| `media.target-folder-shows` | — | Root folder shows are moved/copied into |
+| `media.source-folder` | *(none — set in wizard)* | Folder to watch for new media files |
+| `media.target-folder-movies` | *(none — set in wizard)* | Root folder movies are moved/copied into |
+| `media.target-folder-shows` | *(none — set in wizard)* | Root folder shows are moved/copied into |
 | `media.file-extensions` | mkv mp4 avi m4v mov wmv | Extensions treated as media |
 | `media.poll-interval-ms` | `30000` | How often the source folder is scanned (ms) |
 | `media.stability-threshold-seconds` | `60` | Seconds a file size must be stable before processing |
-| `media.tmdb.api-key` | — | TMDB API read-access token (Bearer) |
+| `media.tmdb.api-key` | *(none — set in wizard)* | TMDB API read-access token (Bearer) |
 | `media.tmdb.base-url` | `https://api.themoviedb.org/3` | TMDB base URL |
 | `media.retry.enabled` | `false` | Enable automatic retry of failed records |
 | `media.retry.interval-ms` | `300000` | How often failed records are retried (ms) |
@@ -133,14 +153,9 @@ Open `http://localhost:8080` and go to the **Settings** tab. Changes take effect
 
 Open `http://localhost:8080` after starting the service.
 
-### Header
-
-- **Running / Stopped pill** — shows the current pipeline state.
-- **■ Stop button** (red) — pauses the pipeline. The file monitor and retry service stop. In-flight processing completes normally.
-- **▶ Play button** (green) — resumes the pipeline. All prior tracking state is discarded and the source folder is re-scanned from scratch.
-
 ### Logs tab
 
+- **Pipeline controls** (optional) — a **Running / Stopped** status pill and **▶ / ■** play/stop button appear at the top of this tab when enabled. Enable them via the **Developer Tools** section in Settings.
 - Source folder grid showing all media files currently present with their status.
 - Processing history table with status filters, configurable page size (1, 2, 5, 10, 20, 50, 100, 1000, All), and pagination.
 - Click any row to open the **detail panel**, which shows paths, error messages, timestamps, and a **Processing Steps** section listing every step the pipeline took (LLM parse, TMDB attempts, Wikipedia lookup, move/copy, scheduled deletion).
@@ -154,6 +169,7 @@ Open `http://localhost:8080` after starting the service.
 | **Title Resolution** | Wikipedia German→English translation (default: off) |
 | **LLM Provider** | Provider, API key, base URL, model |
 | **Display** | Date format |
+| **Developer Tools** | Checkbox to show pipeline controls (Running/Stopped + Play/Stop) in the Logs tab |
 
 ---
 
