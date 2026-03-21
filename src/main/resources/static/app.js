@@ -23,15 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(() => { loadRecords(); loadSourceFiles(); }, 15_000);
   setInterval(checkHealth, 60_000);
 
-  // Event delegation for source grid action buttons
-  document.getElementById('source-grid').addEventListener('click', e => {
-    const btn = e.target.closest('[data-action]');
-    if (!btn) return;
-    e.stopPropagation();
-    const action = btn.dataset.action;
-    if (action === 'rename') startRename(btn.dataset.path, btn.dataset.filename, btn.dataset.rowid);
-    else if (action === 'skip') skipFile(Number(btn.dataset.recordid));
-  });
 });
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
@@ -99,17 +90,16 @@ function renderSourceFiles(files) {
         <span class="source-filename" title="${esc(f.path)}">${esc(f.filename)}</span>
         ${badge(f.status)}
         <span class="source-size">${fmtSize(f.sizeBytes)}</span>
-        <span class="source-actions" onclick="event.stopPropagation()">
+        <span class="source-actions">
           <button class="source-action-btn"
-            data-action="rename"
             data-path="${esc(f.path)}"
             data-filename="${esc(f.filename)}"
             data-rowid="${rowId}"
+            onclick="event.stopPropagation(); startRename(this.dataset.path, this.dataset.filename, this.dataset.rowid)"
             title="Rename file">&#9998; Rename</button>
           ${hasFailed && f.recordId ? `
           <button class="source-action-btn danger"
-            data-action="skip"
-            data-recordid="${f.recordId}"
+            onclick="event.stopPropagation(); skipFile(${f.recordId})"
             title="Exclude this file">&#10005; Exclude</button>` : ''}
         </span>
       </div>
@@ -124,6 +114,23 @@ function toggleSourceError(recordId) {
 }
 
 // ── Source folder actions ─────────────────────────────────────────────────────
+async function rescanSourceFolder() {
+  const btn = document.getElementById('rescan-btn');
+  btn.disabled = true;
+  btn.textContent = 'Scanning…';
+  try {
+    const res  = await fetch('/api/source-files/rescan', { method: 'POST' });
+    const data = await res.json();
+    toast(`Rescan queued ${data.queued} file(s) for processing`, 'success');
+    setTimeout(() => { loadSourceFiles(); loadRecords(); }, 800);
+  } catch (e) {
+    toast('Rescan failed', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '&#8635; Rescan';
+  }
+}
+
 async function retryAllFailed() {
   const btn = document.getElementById('retry-all-btn');
   btn.disabled = true;

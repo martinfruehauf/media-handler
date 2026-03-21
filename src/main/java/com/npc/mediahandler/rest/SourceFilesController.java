@@ -77,6 +77,51 @@ public class SourceFilesController {
         }
     }
 
+    @PostMapping("/rescan")
+    public ResponseEntity<Map<String, Integer>> rescan() {
+        String folderPath = configService.getOrDefault(AppConfigService.SOURCE_FOLDER,
+                properties.getSourceFolder());
+        if (folderPath == null) return ResponseEntity.ok(Map.of("queued", 0));
+
+        Path sourceFolder = Paths.get(folderPath);
+        if (!Files.isDirectory(sourceFolder)) return ResponseEntity.ok(Map.of("queued", 0));
+
+        List<MediaFileRecord> toProcess = new java.util.ArrayList<>();
+        try (Stream<Path> walk = Files.walk(sourceFolder)) {
+            walk.filter(Files::isRegularFile)
+                    .filter(f -> isMediaFile(f.getFileName().toString()))
+                    .forEach(file -> {
+                        var latest = repository.findTopBySourcePathOrderByIdDesc(file.toString());
+                        // Skip files already being processed or successfully moved
+                        if (latest.isPresent()) {
+                            MediaFileStatus s = latest.get().getStatus();
+                            if (s == MediaFileStatus.PENDING || s == MediaFileStatus.MOVED) return;
+                            // Reset existing failed/skipped record
+                            MediaFileRecord r = latest.get();
+                            r.setStatus(MediaFileStatus.PENDING);
+                            r.setErrorMessage(null);
+                            toProcess.add(repository.save(r));
+                        } else {
+                            // No record yet — create one and process immediately
+                            toProcess.add(repository.save(MediaFileRecord.builder()
+                                    .originalFilename(file.getFileName().toString())
+                                    .sourcePath(file.toString())
+                                    .status(MediaFileStatus.PENDING)
+                                    .createdAt(Instant.now())
+                                    .retryCount(0)
+                                    .build()));
+                        }
+                    });
+        } catch (IOException e) {
+            log.error("Rescan failed", e);
+            return ResponseEntity.internalServerError().body(Map.of("queued", 0));
+        }
+
+        CompletableFuture.runAsync(() -> toProcess.forEach(fileProcessingService::execute));
+        log.info("Rescan queued {} file(s) for processing", toProcess.size());
+        return ResponseEntity.ok(Map.of("queued", toProcess.size()));
+    }
+
     @PostMapping("/rename")
     public ResponseEntity<Map<String, String>> rename(@RequestBody RenameRequest req) {
         Path from = Paths.get(req.from());
