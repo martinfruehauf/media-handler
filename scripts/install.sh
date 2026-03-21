@@ -16,12 +16,16 @@ JAR_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/media-handle
 
 # ── install dependencies ──────────────────────────────────────────────────────
 echo "Installing dependencies…"
-# openjdk-21 lives in bookworm-backports on Debian 12
-echo "deb http://deb.debian.org/debian bookworm-backports main" \
-  > /etc/apt/sources.list.d/backports.list
 apt-get update -qq
-apt-get install -y -qq -t bookworm-backports openjdk-21-jre-headless
-apt-get install -y -qq curl
+apt-get install -y -qq curl gnupg
+
+# Add Eclipse Temurin repository (reliable OpenJDK 21 source for Debian/Ubuntu)
+curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public \
+  | gpg --dearmor > /etc/apt/trusted.gpg.d/adoptium.gpg
+echo "deb https://packages.adoptium.net/artifactory/deb bookworm main" \
+  > /etc/apt/sources.list.d/adoptium.list
+apt-get update -qq
+apt-get install -y -qq temurin-21-jre
 
 # ── download JAR ──────────────────────────────────────────────────────────────
 echo "Downloading media-handler.jar from ${JAR_URL}…"
