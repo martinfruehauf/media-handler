@@ -183,8 +183,13 @@ sleep 5
 msg_ok "Container started"
 
 # ── install app inside container ──────────────────────────────────────────────
+msg_info "Fetching installer"
+INSTALL_TMP=$(mktemp /tmp/mediahandler-install.XXXXXX.sh)
+curl -fsSL "${INSTALL_URL}" -o "${INSTALL_TMP}"
+pct push "$CTID" "${INSTALL_TMP}" /tmp/install.sh
+rm -f "${INSTALL_TMP}"
 msg_info "Running installer inside container"
-curl -fsSL "${INSTALL_URL}" | pct exec "$CTID" -- bash -s -- --github-repo "${GITHUB_REPO}"
+pct exec "$CTID" -- bash /tmp/install.sh --github-repo "${GITHUB_REPO}"
 
 # ── done ──────────────────────────────────────────────────────────────────────
 echo
