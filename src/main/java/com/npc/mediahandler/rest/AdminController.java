@@ -27,7 +27,7 @@ public class AdminController {
 
     private static final String JAR_PATH = "/opt/mediahandler/media-handler.jar";
     private static final String JAR_URL  =
-            "https://github.com/martinfruehauf/media-handler/releases/latest/download/media-handler.jar";
+            "http://shithub.lan/martin/media-handler/releases/latest/download/media-handler.jar";
 
     private final ConfigurableApplicationContext context;
 

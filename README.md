@@ -177,6 +177,8 @@ Open `http://localhost:8080` after starting the service.
 | **Display** | Date format |
 | **Developer Tools** | Checkbox to show pipeline controls (Running/Stopped + Play/Stop) in the Logs tab; **Update** button to pull the latest release JAR and restart the service |
 
+> **Update source:** The **Update** button pulls the JAR from a local Forgejo instance at `http://shithub.lan/martin/media-handler/releases/latest/download/media-handler.jar`. Note that this repository may be private — if the update fails, ask the owner to make the release accessible. The install scripts (`scripts/install.sh`, `scripts/setup-lxc.sh`) still reference GitHub and are intended for initial bootstrapping only.
+
 ---
 
 ## Processing statuses
