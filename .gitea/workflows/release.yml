@@ -1,0 +1,43 @@
+name: Build & Release
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Build JAR
+        run: mvn clean package -DskipTests
+
+      - name: Publish release to Forgejo
+        run: |
+          BASE="${{ gitea.server_url }}/api/v1/repos/${{ gitea.repository }}"
+          TOKEN="${{ secrets.RELEASE_TOKEN }}"
+
+          # Remove existing 'latest' release (and its tag) if present
+          ID=$(curl -sf -H "Authorization: token $TOKEN" \
+            "$BASE/releases/tags/latest" | jq -r '.id // empty')
+          if [ -n "$ID" ]; then
+            curl -sf -X DELETE -H "Authorization: token $TOKEN" "$BASE/releases/$ID"
+          fi
+
+          # Create fresh release
+          ID=$(curl -sf -X POST \
+            -H "Authorization: token $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"tag_name":"latest","name":"Latest Build","prerelease":false}' \
+            "$BASE/releases" | jq -r '.id')
+
+          # Attach JAR as release asset
+          curl -sf -X POST \
+            -H "Authorization: token $TOKEN" \
+            -F "attachment=@target/media-handler.jar" \
+            "$BASE/releases/$ID/assets"
