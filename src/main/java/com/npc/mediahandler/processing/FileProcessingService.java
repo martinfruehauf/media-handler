@@ -101,7 +101,7 @@ public class FileProcessingService {
             return;
         }
 
-        String seInfo = metadata.isMovie() ? "" : ", S%sE%s".formatted(
+        String seInfo = metadata.isMovie() ? "" : ", %s%s".formatted(
                 nvl(metadata.season()), nvl(metadata.episode()));
         notes.add(new ProcessingNote("LLM",
                 "filename=\"%s\" → name=%s, type=%s%s".formatted(
