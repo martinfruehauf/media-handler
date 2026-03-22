@@ -283,7 +283,14 @@
             Show pipeline controls in the Logs view
           </label>
         </div>
-        <button class="update-btn" onclick="updateApp()">&#8593; Update MediaHandler (pull latest from GitHub)</button>
+        <div class="update-section">
+          <button class="update-btn" onclick="updateFromShithub()">&#8593; Update from ShitHub (local Forgejo)</button>
+          <div class="update-github-row">
+            <button class="update-btn update-btn--github" id="btn-update-github" disabled onclick="updateFromGithub()">&#8593; Update from GitHub</button>
+            <button class="update-retry-btn" id="btn-github-retry" onclick="checkGithubReachability()" title="Re-check GitHub reachability">&#8635;</button>
+          </div>
+          <div id="github-check-msg" class="github-check-msg"></div>
+        </div>
       </div>
     </div>
 

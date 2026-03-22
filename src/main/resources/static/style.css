@@ -715,7 +715,9 @@ tr.clickable:hover td { background: var(--surface2); }
 
 .source-rename-input:focus { border-color: var(--accent); }
 
-/* ── Update button ── */
+/* ── Update buttons ── */
+.update-section { margin-top: 16px; }
+
 .update-btn {
   width: 100%;
   background: none;
@@ -727,11 +729,44 @@ tr.clickable:hover td { background: var(--surface2); }
   font-size: 13px;
   font-weight: 500;
   padding: 9px 20px;
-  margin-top: 16px;
   transition: background .15s, color .15s;
 }
 
-.update-btn:hover { background: var(--warning); color: #000; }
+.update-btn:hover:not(:disabled) { background: var(--warning); color: #000; }
+.update-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.update-github-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  align-items: stretch;
+}
+
+.update-github-row .update-btn { flex: 1; }
+
+.update-retry-btn {
+  background: none;
+  border: 1px solid var(--muted);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 15px;
+  padding: 0 10px;
+  transition: border-color .15s, color .15s;
+  flex-shrink: 0;
+}
+
+.update-retry-btn:hover:not(:disabled) { border-color: var(--fg); color: var(--fg); }
+.update-retry-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.github-check-msg {
+  font-size: 11px;
+  margin-top: 5px;
+  color: var(--muted);
+}
+
+.github-check-msg--ok  { color: var(--success, #4caf50); }
+.github-check-msg--err { color: var(--error,   #e57373); }
 
 /* ── First-run setup overlay ── */
 .setup-overlay {

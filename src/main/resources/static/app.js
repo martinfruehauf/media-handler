@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadRecords();
   loadSourceFiles();
   checkHealth();
+  checkGithubReachability();
   setInterval(() => { loadRecords(); loadSourceFiles(); }, 15_000);
   setInterval(checkHealth, 60_000);
 
@@ -647,22 +648,62 @@ function updateHealthIndicator(id, status) {
 }
 
 // ── Self-update ───────────────────────────────────────────────────────────────
-async function updateApp() {
+async function updateFromShithub() {
+  if (!confirm(
+    'This will download the latest release from ShitHub (local Forgejo) and restart the service.\n\n' +
+    'The page will reload automatically after ~30 seconds.\n\nProceed?'
+  )) return;
+  await doUpdate('/api/admin/update', 'ShitHub');
+}
+
+async function updateFromGithub() {
   if (!confirm(
     'This will download the latest release from GitHub and restart the service.\n\n' +
     'The page will reload automatically after ~30 seconds.\n\nProceed?'
   )) return;
+  await doUpdate('/api/admin/update/github', 'GitHub');
+}
+
+async function doUpdate(endpoint, source) {
   try {
-    const res = await fetch('/api/admin/update', { method: 'POST' });
+    const res = await fetch(endpoint, { method: 'POST' });
     if (res.status === 400) {
       const data = await res.json();
       toast(data.error || 'Update not available in this environment', 'error');
       return;
     }
-    toast('Update in progress — page will reload in 30s…', 'success');
+    toast(`Update from ${source} in progress — page will reload in 30s…`, 'success');
     setTimeout(() => location.reload(), 30_000);
   } catch (e) {
     toast('Update request failed', 'error');
+  }
+}
+
+async function checkGithubReachability() {
+  const btn    = document.getElementById('btn-update-github');
+  const retry  = document.getElementById('btn-github-retry');
+  const msg    = document.getElementById('github-check-msg');
+  msg.textContent = 'Checking GitHub…';
+  msg.className = 'github-check-msg';
+  retry.disabled = true;
+  try {
+    const res  = await fetch('/api/admin/update/github/check');
+    const data = await res.json();
+    if (data.reachable) {
+      btn.disabled = false;
+      msg.textContent = 'GitHub is reachable';
+      msg.className = 'github-check-msg github-check-msg--ok';
+    } else {
+      btn.disabled = true;
+      msg.textContent = 'GitHub release not reachable (repo may be private)';
+      msg.className = 'github-check-msg github-check-msg--err';
+    }
+  } catch (e) {
+    btn.disabled = true;
+    msg.textContent = 'Check failed — could not reach server';
+    msg.className = 'github-check-msg github-check-msg--err';
+  } finally {
+    retry.disabled = false;
   }
 }
 
