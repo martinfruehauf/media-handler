@@ -72,6 +72,11 @@ public class FileMonitorService {
             return;
         }
 
+        if (configService.needsSetup()) {
+            log.debug("Initial setup not complete — skipping scan");
+            return;
+        }
+
         if (resetPending) {
             lastSeenSizes.clear();
             sizeStableSince.clear();

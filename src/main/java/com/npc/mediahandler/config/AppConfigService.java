@@ -81,9 +81,21 @@ public class AppConfigService {
                 .collect(Collectors.toMap(AppConfig::getConfigKey, AppConfig::getValue));
     }
 
-    private static final java.util.Set<String> PLACEHOLDERS = java.util.Set.of(
+    public static final java.util.Set<String> PLACEHOLDERS = java.util.Set.of(
             "YOUR_TMDB_BEARER_TOKEN", "ollama", "sk-ant-..."
     );
+
+    public boolean needsSetup() {
+        return isBlankOrPlaceholder(get(SOURCE_FOLDER))
+            || isBlankOrPlaceholder(get(TARGET_FOLDER_MOVIES))
+            || isBlankOrPlaceholder(get(TARGET_FOLDER_SHOWS))
+            || isBlankOrPlaceholder(get(TMDB_API_KEY))
+            || isBlankOrPlaceholder(get(LLM_API_KEY));
+    }
+
+    public static boolean isBlankOrPlaceholder(String v) {
+        return v == null || v.isBlank() || PLACEHOLDERS.contains(v);
+    }
 
     private void setIfAbsent(String key, String value) {
         if (value == null || PLACEHOLDERS.contains(value)) return;
