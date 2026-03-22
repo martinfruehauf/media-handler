@@ -82,7 +82,7 @@ public class AppConfigService {
     }
 
     public static final java.util.Set<String> PLACEHOLDERS = java.util.Set.of(
-            "YOUR_TMDB_BEARER_TOKEN", "ollama", "sk-ant-..."
+            "YOUR_TMDB_BEARER_TOKEN", "sk-ant-..."
     );
 
     public boolean needsSetup() {

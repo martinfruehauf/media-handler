@@ -717,8 +717,23 @@ async function checkSetupNeeded() {
     if (needsSetup) {
       document.getElementById('setup-overlay').style.display = 'flex';
       document.querySelector('nav').style.visibility = 'hidden';
+      prefillSetupWizard();
     }
   } catch (e) { /* silent — don't block normal load on error */ }
+}
+
+async function prefillSetupWizard() {
+  try {
+    const res = await fetch('/api/config');
+    const cfg = await res.json();
+    const fill = (id, key) => { if (cfg[key]) document.getElementById(id).value = cfg[key]; };
+    fill('su-source', 'source.folder');
+    fill('su-movies', 'target.folder.movies');
+    fill('su-shows',  'target.folder.shows');
+    fill('su-llm-url',   'llm.base-url');
+    fill('su-llm-model', 'llm.model');
+    if (cfg['llm.provider']) suSelectProvider(cfg['llm.provider']);
+  } catch (e) { /* keep HTML defaults on error */ }
 }
 
 function suSelectProvider(p) {

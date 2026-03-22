@@ -34,7 +34,7 @@
     <p class="setup-subtitle">Configure your folders and API keys. You can change these later in Settings.</p>
 
     <div class="setup-section-label">Folders</div>
-    <div class="field"><label>Source Folder</label><input id="su-source" type="text" placeholder="/mnt/nas/downloads" /></div>
+    <div class="field"><label>Source Folder</label><input id="su-source" type="text" placeholder="/mnt/nas/tmp" /></div>
     <div class="field"><label>Target — Movies</label><input id="su-movies" type="text" placeholder="/mnt/nas/movies" /></div>
     <div class="field"><label>Target — Shows</label><input id="su-shows" type="text" placeholder="/mnt/nas/shows" /></div>
 
@@ -49,8 +49,8 @@
         <button class="provider-btn" data-provider="anthropic" onclick="suSelectProvider('anthropic')">Anthropic</button>
       </div>
     </div>
-    <div class="field"><label>API Key</label><input id="su-llm-key" type="password" placeholder="sk-... or ollama" /></div>
-    <div class="field" id="su-llm-url-field"><label>Base URL</label><input id="su-llm-url" type="text" value="http://localhost:11434" /></div>
+    <div class="field"><label>API Key</label><input id="su-llm-key" type="password" placeholder="sk-... or ollama" value="ollama" /></div>
+    <div class="field" id="su-llm-url-field"><label>Base URL</label><input id="su-llm-url" type="text" value="http://192.168.178.78:11434" /></div>
     <div class="field"><label>Model</label><input id="su-llm-model" type="text" value="qwen2.5:14b" /></div>
 
     <div id="su-test-results" class="su-test-results" style="display:none;">
