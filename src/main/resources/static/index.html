@@ -53,7 +53,17 @@
     <div class="field" id="su-llm-url-field"><label>Base URL</label><input id="su-llm-url" type="text" value="http://localhost:11434" /></div>
     <div class="field"><label>Model</label><input id="su-llm-model" type="text" value="qwen2.5:14b" /></div>
 
-    <button class="save-btn" style="width:100%;margin-top:8px;" onclick="saveSetup()">Save &amp; Start</button>
+    <div id="su-test-results" class="su-test-results" style="display:none;">
+      <div class="su-test-row" id="su-test-tmdb">
+        <span class="su-test-label">TMDB</span>
+        <span class="su-test-status"></span>
+      </div>
+      <div class="su-test-row" id="su-test-llm">
+        <span class="su-test-label">LLM</span>
+        <span class="su-test-status"></span>
+      </div>
+    </div>
+    <button class="save-btn" style="width:100%;margin-top:12px;" id="su-save-btn" onclick="saveSetup()">Test &amp; Save</button>
     <p id="setup-error" class="setup-error" style="display:none;"></p>
   </div>
 </div>

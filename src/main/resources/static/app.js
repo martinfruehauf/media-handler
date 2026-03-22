@@ -745,6 +745,12 @@ async function saveSetup() {
     showSetupError('LLM model is required (e.g. qwen2.5:14b or gpt-4o).');
     return;
   }
+
+  const btn = document.getElementById('su-save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Testing…';
+  showSetupError('');
+
   const payload = {
     'source.folder':        source,
     'target.folder.movies': movies,
@@ -755,20 +761,55 @@ async function saveSetup() {
     'llm.base-url':         getVal('su-llm-url') || 'http://localhost:11434',
     'llm.model':            llmModel,
   };
+
   try {
     await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    document.getElementById('setup-overlay').style.display = 'none';
-    document.querySelector('nav').style.visibility = '';
-    loadRecords();
-    loadSourceFiles();
-    toast('Setup complete — MediaHandler is running', 'success');
   } catch (e) {
     showSetupError('Failed to save settings. Please try again.');
+    btn.disabled = false;
+    btn.textContent = 'Test & Save';
+    return;
   }
+
+  try {
+    const res    = await fetch('/api/health');
+    const health = await res.json();
+    const tmdbOk = health.tmdb?.ok === true;
+    const llmOk  = health.llm?.ok  === true;
+
+    suSetTestRow('su-test-tmdb', tmdbOk, health.tmdb?.message);
+    suSetTestRow('su-test-llm',  llmOk,  health.llm?.message);
+    document.getElementById('su-test-results').style.display = '';
+
+    if (tmdbOk && llmOk) {
+      document.getElementById('setup-overlay').style.display = 'none';
+      document.querySelector('nav').style.visibility = '';
+      loadRecords();
+      loadSourceFiles();
+      toast('Setup complete — MediaHandler is running', 'success');
+      return;
+    }
+
+    const failures = [!tmdbOk && 'TMDB', !llmOk && 'LLM'].filter(Boolean).join(' and ');
+    showSetupError(`${failures} check failed — fix the settings above and retry.`);
+    btn.textContent = 'Retry test';
+  } catch (e) {
+    showSetupError('Connection test failed. Please try again.');
+    btn.textContent = 'Retry test';
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function suSetTestRow(id, ok, message) {
+  const row    = document.getElementById(id);
+  const status = row.querySelector('.su-test-status');
+  row.className = 'su-test-row ' + (ok ? 'su-test-row--ok' : 'su-test-row--err');
+  status.textContent = (ok ? '✓' : '✗') + (message ? ' — ' + message : '');
 }
 
 function showSetupError(msg) {
   const el = document.getElementById('setup-error');
   el.textContent = msg;
-  el.style.display = 'block';
+  el.style.display = msg ? 'block' : 'none';
 }
