@@ -41,7 +41,7 @@
     <div class="setup-section-label">TMDB</div>
     <div class="field"><label>API Key (Bearer Token)</label><input id="su-tmdb" type="password" placeholder="eyJ..." /></div>
 
-    <div class="setup-section-label">LLM <span class="setup-optional">(optional — can be set later)</span></div>
+    <div class="setup-section-label">LLM</div>
     <div class="field">
       <label>Provider</label>
       <div class="provider-toggle">
@@ -50,8 +50,8 @@
       </div>
     </div>
     <div class="field"><label>API Key</label><input id="su-llm-key" type="password" placeholder="sk-... or ollama" /></div>
-    <div class="field" id="su-llm-url-field"><label>Base URL</label><input id="su-llm-url" type="text" placeholder="http://localhost:11434" /></div>
-    <div class="field"><label>Model</label><input id="su-llm-model" type="text" placeholder="qwen2.5:14b" /></div>
+    <div class="field" id="su-llm-url-field"><label>Base URL</label><input id="su-llm-url" type="text" value="http://localhost:11434" /></div>
+    <div class="field"><label>Model</label><input id="su-llm-model" type="text" value="qwen2.5:14b" /></div>
 
     <button class="save-btn" style="width:100%;margin-top:8px;" onclick="saveSetup()">Save &amp; Start</button>
     <p id="setup-error" class="setup-error" style="display:none;"></p>

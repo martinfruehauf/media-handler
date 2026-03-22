@@ -690,9 +690,18 @@ function suSelectProvider(p) {
 
 async function saveSetup() {
   const source = getVal('su-source'), movies = getVal('su-movies'),
-        shows  = getVal('su-shows'),  tmdb   = getVal('su-tmdb');
+        shows  = getVal('su-shows'),  tmdb   = getVal('su-tmdb'),
+        llmKey = getVal('su-llm-key'), llmModel = getVal('su-llm-model');
   if (!source || !movies || !shows || !tmdb) {
     showSetupError('Source folder, both target folders, and TMDB key are required.');
+    return;
+  }
+  if (!llmKey) {
+    showSetupError('LLM API key is required. Use "ollama" if running a local Ollama instance.');
+    return;
+  }
+  if (!llmModel) {
+    showSetupError('LLM model is required (e.g. qwen2.5:14b or gpt-4o).');
     return;
   }
   const payload = {
@@ -701,9 +710,9 @@ async function saveSetup() {
     'target.folder.shows':  shows,
     'tmdb.api-key':         tmdb,
     'llm.provider':         suProvider,
-    'llm.api-key':          getVal('su-llm-key') || 'ollama',
+    'llm.api-key':          llmKey,
     'llm.base-url':         getVal('su-llm-url') || 'http://localhost:11434',
-    'llm.model':            getVal('su-llm-model') || 'qwen2.5:14b',
+    'llm.model':            llmModel,
   };
   try {
     await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });

@@ -32,7 +32,7 @@ The wizard collects:
 | Target — Movies | ✓ | Root folder for processed movies (e.g. `/mnt/nas/movies`) |
 | Target — Shows | ✓ | Root folder for processed shows (e.g. `/mnt/nas/shows`) |
 | TMDB API Key | ✓ | Bearer token from [themoviedb.org](https://www.themoviedb.org/settings/api) |
-| LLM Provider / Key / URL / Model | — | Optional at setup; can be configured later in Settings |
+| LLM Provider / Key / URL / Model | ✓ | Required — without a working LLM every file fails at the parse step. Defaults to a local Ollama instance (`http://localhost:11434`, model `qwen2.5:14b`); use `ollama` as the API key for local Ollama |
 
 All values can be changed at any time in the **Settings** tab.
 
