@@ -231,12 +231,13 @@ public class FileProcessingService {
 
     // ── Source-folder cleanup ─────────────────────────────────────────────────
 
-    private static final Set<String> VIDEO_EXTENSIONS = Set.of(
-            "mkv", "mp4", "avi", "mov", "wmv", "m4v", "ts", "mpg", "mpeg",
-            "divx", "xvid", "flv", "webm", "rmvb", "rm", "vob", "m2ts", "mts"
+    /** Archive/compressed formats that indicate an active or pending download — never delete these or their folder. */
+    private static final Set<String> ARCHIVE_EXTENSIONS = Set.of(
+            "zip", "rar", "7z", "gz", "bz2", "xz", "tar",
+            "r00", "r01", "r02", "r03", "r04", "r05",
+            "001", "002", "003",
+            "nzb", "par", "par2"
     );
-    /** Anything below this is treated as a sample / junk clip (50 MB). */
-    private static final long SMALL_VIDEO_THRESHOLD_BYTES = 50L * 1024 * 1024;
 
     private void cleanupSourceFolder(Path movedFile, List<ProcessingNote> notes) {
         boolean enabled = Boolean.parseBoolean(
@@ -250,18 +251,40 @@ public class FileProcessingService {
         // Never attempt to clean up the source root itself
         if (folder == null || folder.equals(Paths.get(sourceRoot))) return;
 
-        // Delete leftover meta / small-video files
+        // List all remaining files once so we can inspect them before touching anything
+        List<Path> remaining;
         try (Stream<Path> stream = Files.list(folder)) {
-            for (Path file : stream.toList()) {
-                if (Files.isDirectory(file)) continue;
-                String ext = extension(file);
-                if (!VIDEO_EXTENSIONS.contains(ext)) {
-                    // Non-video meta file — delete silently
+            remaining = stream.filter(p -> !Files.isDirectory(p)).toList();
+        } catch (IOException e) {
+            log.warn("Could not list folder for cleanup '{}': {}", folder, e.getMessage());
+            return;
+        }
+
+        // If any archive file is present the folder may still be downloading — skip cleanup entirely
+        for (Path file : remaining) {
+            if (ARCHIVE_EXTENSIONS.contains(extension(file))) {
+                log.info("Skipping folder cleanup for '{}': archive file present ({})", folder, file.getFileName());
+                return;
+            }
+        }
+
+        // Delete leftover meta / small-video files
+        Set<String> videoExtensions = Set.copyOf(properties.getFileExtensions());
+        long sampleThresholdBytes = properties.getSampleVideoThresholdMb() * 1024 * 1024;
+        for (Path file : remaining) {
+            String ext = extension(file);
+            if (!videoExtensions.contains(ext)) {
+                // Non-video meta file — delete silently
+                try {
                     Files.deleteIfExists(file);
                     log.info("Deleted meta file during folder cleanup: {}", file);
-                } else {
+                } catch (IOException e) {
+                    log.warn("Could not delete meta file '{}': {}", file, e.getMessage());
+                }
+            } else {
+                try {
                     long size = Files.size(file);
-                    if (size < SMALL_VIDEO_THRESHOLD_BYTES) {
+                    if (size < sampleThresholdBytes) {
                         Files.deleteIfExists(file);
                         String sizeStr = formatSize(size);
                         log.info("Deleted small video file during folder cleanup: {} ({})", file, sizeStr);
@@ -269,11 +292,10 @@ public class FileProcessingService {
                                 "deleted small video file \"%s\" (%s)".formatted(
                                         file.getFileName(), sizeStr)));
                     }
+                } catch (IOException e) {
+                    log.warn("Could not process file '{}': {}", file, e.getMessage());
                 }
             }
-        } catch (IOException e) {
-            log.warn("Could not list folder for cleanup '{}': {}", folder, e.getMessage());
-            return;
         }
 
         // Attempt to remove the (now hopefully empty) folder

@@ -41,7 +41,7 @@ public class DynamicChatClientProvider {
     public synchronized ChatClient getChatClient() {
         String provider = configService.getOrDefault(LLM_PROVIDER, "openai");
         String apiKey   = configService.getOrDefault(LLM_API_KEY, "ollama");
-        String baseUrl  = configService.getOrDefault(LLM_BASE_URL, "http://localhost:11434");
+        String baseUrl  = configService.getLlmBaseUrl();
         String model    = configService.getOrDefault(LLM_MODEL, "qwen2.5:14b");
 
         if (cachedClient != null

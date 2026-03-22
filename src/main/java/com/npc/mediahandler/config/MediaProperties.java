@@ -31,6 +31,15 @@ public class MediaProperties {
      */
     private long stabilityThresholdSeconds = 60;
 
+    /**
+     * Files below this size (MB) that match a video extension are treated as sample/junk and deleted during
+     * source-folder cleanup.
+     */
+    private long sampleVideoThresholdMb = 50;
+
+    /** How often (milliseconds) to check for source files that are due for deletion in copy mode. */
+    private long cleanupIntervalMs = 30 * 60 * 1000;
+
     private Tmdb tmdb = new Tmdb();
 
     @Data

@@ -39,6 +39,8 @@ media:
     - m4v
     - mov
     - wmv
+  sample-video-threshold-mb: 50   # video files smaller than this are treated as samples and deleted during folder cleanup
+  cleanup-interval-ms: 1800000   # how often to check for copy-mode source files due for deletion (default: 30 minutes)
   poll-interval-ms: 30000
   stability-threshold-seconds: 60
   tmdb:

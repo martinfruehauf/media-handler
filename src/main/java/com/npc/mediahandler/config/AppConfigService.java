@@ -67,6 +67,11 @@ public class AppConfigService {
         return value != null ? value : defaultValue;
     }
 
+    /** Returns the configured LLM base URL, falling back to the yml-injected Spring AI value. */
+    public String getLlmBaseUrl() {
+        return getOrDefault(LLM_BASE_URL, openAiBaseUrl);
+    }
+
     public void set(String key, String value) {
         repository.save(new AppConfig(key, value));
     }

@@ -23,7 +23,7 @@ public class OriginalFileCleanupService {
 
     private final MediaFileRepository repository;
 
-    @Scheduled(fixedDelay = 30 * 60 * 1000) // every 30 minutes
+    @Scheduled(fixedDelayString = "${media.cleanup-interval-ms:1800000}")
     public void deleteExpiredOriginals() {
         List<MediaFileRecord> due = repository.findBySourceDeleteAfterBefore(Instant.now());
         if (due.isEmpty()) return;

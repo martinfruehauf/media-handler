@@ -58,7 +58,7 @@ public class HealthController {
         String provider = configService.getOrDefault(AppConfigService.LLM_PROVIDER, "openai");
         String baseUrl = "anthropic".equals(provider)
                 ? "https://api.anthropic.com"
-                : configService.getOrDefault(AppConfigService.LLM_BASE_URL, "http://localhost:11434");
+                : configService.getLlmBaseUrl();
         try {
             URL url = new URL(baseUrl);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
