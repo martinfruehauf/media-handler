@@ -8,11 +8,19 @@ A Spring Boot service that watches a source folder for new media files, parses t
 
 ## Deploy on Proxmox (LXC)
 
-Run this on your Proxmox host — it creates a Debian 12 LXC container and starts the app as a systemd service:
+Run one of these on your Proxmox host — it creates a Debian 12 LXC container and starts the app as a systemd service.
 
+**From ShitHub (local Forgejo, LAN only):**
+```bash
+bash <(curl -s http://shithub.lan/martin/media-handler/raw/branch/main/scripts/setup-lxc.sh) --source shithub
+```
+
+**From GitHub (public internet):**
 ```bash
 bash <(curl -s https://raw.githubusercontent.com/martinfruehauf/media-handler/main/scripts/setup-lxc.sh)
 ```
+
+> The GitHub repository may be private. If the curl fails, ask the owner to make it public, or use the ShitHub command instead.
 
 The script asks only for container/network settings (ID, hostname, password, disk, RAM, CPU, bridge, IP). It does **not** ask for folder paths — those are configured after the container is running, once your NAS mounts are in place.
 
@@ -177,7 +185,7 @@ Open `http://localhost:8080` after starting the service.
 | **Display** | Date format |
 | **Developer Tools** | Checkbox to show pipeline controls (Running/Stopped + Play/Stop) in the Logs tab; **Update** button to pull the latest release JAR and restart the service |
 
-> **Update source:** The **Update** button pulls the JAR from a local Forgejo instance at `http://shithub.lan/martin/media-handler/releases/latest/download/media-handler.jar`. Note that this repository may be private — if the update fails, ask the owner to make the release accessible. The install scripts (`scripts/install.sh`, `scripts/setup-lxc.sh`) still reference GitHub and are intended for initial bootstrapping only.
+> **Update source:** The **Update from ShitHub** button pulls from `http://shithub.lan/martin/media-handler` (local Forgejo, LAN only). The **Update from GitHub** button is only enabled after a reachability check — the repository may be private, in which case ask the owner to make it public.
 
 ---
 

@@ -4,7 +4,23 @@ set -euo pipefail
 
 TITLE="MediaHandler LXC"
 GITHUB_REPO="martinfruehauf/media-handler"
-INSTALL_URL="https://raw.githubusercontent.com/${GITHUB_REPO}/main/scripts/install.sh"
+SOURCE="github"
+
+# ── parse arguments ───────────────────────────────────────────────────────────
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --source) SOURCE="$2"; shift 2 ;;
+    *) echo "Unknown argument: $1"; exit 1 ;;
+  esac
+done
+
+if [[ "$SOURCE" == "shithub" ]]; then
+  INSTALL_URL="http://shithub.lan/martin/media-handler/raw/branch/main/scripts/install.sh"
+  INSTALL_EXTRA_ARGS=(--jar-url "http://shithub.lan/martin/media-handler/releases/latest/download/media-handler.jar")
+else
+  INSTALL_URL="https://raw.githubusercontent.com/${GITHUB_REPO}/main/scripts/install.sh"
+  INSTALL_EXTRA_ARGS=()
+fi
 
 # ── colour helpers (used after whiptail, during provisioning) ─────────────────
 YW='\033[33m' GN='\033[1;92m' RD='\033[01;31m' CL='\033[m'
@@ -189,7 +205,7 @@ curl -fsSL "${INSTALL_URL}" -o "${INSTALL_TMP}"
 pct push "$CTID" "${INSTALL_TMP}" /tmp/install.sh
 rm -f "${INSTALL_TMP}"
 msg_info "Running installer inside container"
-pct exec "$CTID" -- bash /tmp/install.sh --github-repo "${GITHUB_REPO}"
+pct exec "$CTID" -- bash /tmp/install.sh --github-repo "${GITHUB_REPO}" "${INSTALL_EXTRA_ARGS[@]}"
 
 # ── done ──────────────────────────────────────────────────────────────────────
 echo

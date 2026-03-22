@@ -3,16 +3,21 @@
 set -euo pipefail
 
 GITHUB_REPO="martinfruehauf/media-handler"
+JAR_URL=""
 
 # ── parse arguments ───────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --github-repo) GITHUB_REPO="$2"; shift 2 ;;
+    --jar-url)     JAR_URL="$2";     shift 2 ;;
     *) echo "Unknown argument: $1"; exit 1 ;;
   esac
 done
 
-JAR_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/media-handler.jar"
+# Derive JAR URL from repo if not explicitly provided
+if [[ -z "$JAR_URL" ]]; then
+  JAR_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/media-handler.jar"
+fi
 
 # ── install dependencies ──────────────────────────────────────────────────────
 echo "Installing dependencies…"
