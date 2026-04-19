@@ -20,10 +20,12 @@ public class WolController {
 
     @GetMapping("/status")
     public Map<String, Object> status() {
+        String pubKey = wolService.getOrCreateSshPublicKey();
         return Map.of(
             "state",           wolService.getState().name(),
             "message",         wolService.getStatusMessage(),
-            "shutdownCommand", wolService.getResolvedShutdownCmd()
+            "shutdownCommand", wolService.getResolvedShutdownCmd(),
+            "sshPublicKey",    pubKey != null ? pubKey : ""
         );
     }
 

@@ -485,7 +485,8 @@ function applyConfig() {
   document.getElementById('cfg-folder-cleanup-enabled').checked = config['folder.cleanup.enabled'] !== 'false';
   document.getElementById('cfg-wiki-title-lookup').checked = config['wiki.title.lookup'] === 'true';
   document.getElementById('cfg-llm-wol-enabled').checked = config['llm.wol.enabled'] !== 'false';
-  setVal('cfg-llm-wol-mac', config['llm.wol.mac']);
+  setVal('cfg-llm-wol-mac',          config['llm.wol.mac']);
+  setVal('cfg-llm-wol-ssh-user',     config['llm.wol.ssh-user']);
   setVal('cfg-llm-wol-shutdown-cmd', config['llm.wol.shutdown-cmd']);
   toggleWolFields();
 
@@ -520,10 +521,18 @@ async function loadWolStatus() {
   try {
     const res = await fetch('/api/wol/status');
     if (!res.ok) return;
-    const { shutdownCommand } = await res.json();
-    const el = document.getElementById('wol-resolved-cmd');
-    if (el) el.textContent = shutdownCommand || '—';
+    const { shutdownCommand, sshPublicKey } = await res.json();
+    const cmdEl = document.getElementById('wol-resolved-cmd');
+    if (cmdEl) cmdEl.textContent = shutdownCommand || '—';
+    const keyEl = document.getElementById('wol-ssh-pubkey');
+    if (keyEl) keyEl.textContent = sshPublicKey || '(key not generated yet — will be created on first use)';
   } catch (e) { /* silent */ }
+}
+
+function copyWolPubKey() {
+  const key = document.getElementById('wol-ssh-pubkey').textContent;
+  if (!key || key.startsWith('(')) return;
+  navigator.clipboard.writeText(key).then(() => toast('Public key copied', 'success'));
 }
 
 async function testWolShutdown() {
@@ -588,6 +597,7 @@ async function saveSettings() {
     'wiki.title.lookup': document.getElementById('cfg-wiki-title-lookup').checked.toString(),
     'llm.wol.enabled':      document.getElementById('cfg-llm-wol-enabled').checked.toString(),
     'llm.wol.mac':          getVal('cfg-llm-wol-mac'),
+    'llm.wol.ssh-user':     getVal('cfg-llm-wol-ssh-user'),
     'llm.wol.shutdown-cmd': getVal('cfg-llm-wol-shutdown-cmd'),
   };
 

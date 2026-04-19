@@ -33,6 +33,7 @@ public class AppConfigService {
     public static final String LLM_MODEL            = "llm.model";
     public static final String LLM_WOL_ENABLED      = "llm.wol.enabled";
     public static final String LLM_WOL_MAC          = "llm.wol.mac";
+    public static final String LLM_WOL_SSH_USER     = "llm.wol.ssh-user";
     public static final String LLM_WOL_SHUTDOWN_CMD = "llm.wol.shutdown-cmd";
     public static final String FILE_OVERWRITE                  = "file.overwrite";
     public static final String FILE_COPY_MODE                  = "file.copy.mode";
@@ -56,6 +57,7 @@ public class AppConfigService {
         setIfAbsent(LLM_MODEL,            openAiModel);
         setIfAbsent(LLM_WOL_ENABLED,      "true");
         setIfAbsent(LLM_WOL_MAC,          "b4:a9:fc:cd:58:88");
+        setIfAbsent(LLM_WOL_SSH_USER,     "martin");
         setIfAbsent(LLM_WOL_SHUTDOWN_CMD, "");
         setIfAbsent(FILE_OVERWRITE, "false");
         setIfAbsent(FILE_COPY_MODE, "false");

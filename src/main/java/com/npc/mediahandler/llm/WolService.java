@@ -254,13 +254,46 @@ public class WolService {
     private String buildShutdownCmd() {
         String custom = configService.get(AppConfigService.LLM_WOL_SHUTDOWN_CMD);
         if (custom != null && !custom.isBlank()) return custom;
-        String baseUrl = configService.getLlmBaseUrl();
+
+        String host = "192.168.178.81";
+        try { host = new URL(configService.getLlmBaseUrl()).getHost(); } catch (Exception ignored) {}
+
+        String user = configService.getOrDefault(AppConfigService.LLM_WOL_SSH_USER, "martin");
+        String keyPath = getSshKeyPath().toAbsolutePath().toString();
+
+        return "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null" +
+               " -o ConnectTimeout=5 -i " + keyPath +
+               " " + user + "@" + host + " sudo shutdown -h now";
+    }
+
+    /** Path to the app-managed SSH private key used for WOL shutdown. */
+    java.nio.file.Path getSshKeyPath() {
+        return java.nio.file.Paths.get("data", "wol_id_ed25519");
+    }
+
+    /**
+     * Returns the public key content, generating the key pair first if it doesn't exist.
+     * The public key must be added to the LLM machine's ~/.ssh/authorized_keys once.
+     */
+    public String getOrCreateSshPublicKey() {
+        java.nio.file.Path keyPath = getSshKeyPath();
+        java.nio.file.Path pubPath = java.nio.file.Paths.get(keyPath + ".pub");
         try {
-            String host = new URL(baseUrl).getHost();
-            return "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 " + host + " sudo shutdown -h now";
+            if (!java.nio.file.Files.exists(keyPath)) {
+                java.nio.file.Files.createDirectories(keyPath.getParent());
+                Process p = new ProcessBuilder(
+                        "ssh-keygen", "-t", "ed25519", "-N", "", "-f", keyPath.toAbsolutePath().toString())
+                        .redirectErrorStream(true).start();
+                p.waitFor(10, TimeUnit.SECONDS);
+                log.info("Generated WOL SSH key at {}", keyPath.toAbsolutePath());
+            }
+            if (java.nio.file.Files.exists(pubPath)) {
+                return java.nio.file.Files.readString(pubPath).trim();
+            }
         } catch (Exception e) {
-            return "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 192.168.178.81 sudo shutdown -h now";
+            log.error("Failed to generate SSH key: {}", e.getMessage());
         }
+        return null;
     }
 
     private boolean isLlmReachable() {

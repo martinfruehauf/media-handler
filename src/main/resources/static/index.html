@@ -274,12 +274,23 @@
             <input id="cfg-llm-wol-mac" type="text" value="b4:a9:fc:cd:58:88" placeholder="b4:a9:fc:cd:58:88" />
           </div>
           <div class="field">
-            <label>Shutdown Command <span style="font-weight:400;color:var(--muted)">(leave blank to auto-derive from LLM host via SSH)</span></label>
+            <label>SSH User <span style="font-weight:400;color:var(--muted)">(user on the LLM machine that can sudo shutdown)</span></label>
+            <input id="cfg-llm-wol-ssh-user" type="text" value="martin" placeholder="martin" />
+          </div>
+          <div class="field">
+            <label>Shutdown Command <span style="font-weight:400;color:var(--muted)">(leave blank to auto-build from LLM host + SSH user)</span></label>
             <input id="cfg-llm-wol-shutdown-cmd" type="text" placeholder="ssh user@host sudo shutdown -h now" />
           </div>
           <div class="field">
             <label>Resolved Command <span style="font-weight:400;color:var(--muted)">(what will actually run)</span></label>
             <code id="wol-resolved-cmd" style="font-size:12px;color:var(--muted);word-break:break-all;">—</code>
+          </div>
+          <div class="field">
+            <label>SSH Public Key <span style="font-weight:400;color:var(--muted)">(add this to <code>~/.ssh/authorized_keys</code> on the LLM machine once)</span></label>
+            <div style="display:flex;gap:6px;align-items:flex-start;">
+              <code id="wol-ssh-pubkey" style="font-size:11px;color:var(--muted);word-break:break-all;flex:1;">Loading…</code>
+              <button class="icon-btn" onclick="copyWolPubKey()" title="Copy to clipboard">&#128203; Copy</button>
+            </div>
           </div>
           <button class="save-btn" style="margin-top:4px;" onclick="testWolShutdown()">Test Shutdown Now</button>
           <div id="wol-test-result" style="margin-top:8px;font-size:12px;display:none;"></div>
