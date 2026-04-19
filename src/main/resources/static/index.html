@@ -292,7 +292,10 @@
               <button class="icon-btn" onclick="copyWolPubKey()" title="Copy to clipboard">&#128203; Copy</button>
             </div>
           </div>
-          <button class="save-btn" style="margin-top:4px;" onclick="testWolShutdown()">Test Shutdown Now</button>
+          <div style="display:flex;gap:8px;margin-top:4px;flex-wrap:wrap;">
+            <button class="save-btn" onclick="testWolWake()">Test Wake Now</button>
+            <button class="save-btn" onclick="testWolShutdown()">Test Shutdown Now</button>
+          </div>
           <div id="wol-test-result" style="margin-top:8px;font-size:12px;display:none;"></div>
         </div>
 

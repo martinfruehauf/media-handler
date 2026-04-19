@@ -33,4 +33,9 @@ public class WolController {
     public Map<String, Object> testShutdown() {
         return wolService.runShutdownNow();
     }
+
+    @PostMapping("/test-wake")
+    public Map<String, Object> testWake() {
+        return wolService.sendWakePacketNow();
+    }
 }

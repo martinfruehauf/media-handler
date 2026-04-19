@@ -535,6 +535,33 @@ function copyWolPubKey() {
   navigator.clipboard.writeText(key).then(() => toast('Public key copied', 'success'));
 }
 
+async function testWolWake() {
+  const resultEl = document.getElementById('wol-test-result');
+  resultEl.style.display = '';
+  resultEl.style.color = 'var(--muted)';
+  resultEl.textContent = 'Sending magic packet…';
+  try {
+    const res = await fetch('/api/wol/test-wake', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      resultEl.style.color = 'var(--success)';
+      resultEl.textContent = '✓ ' + data.message;
+      // Poll health every 5s for 5 minutes so the indicator updates as machine boots
+      let polls = 0;
+      const interval = setInterval(async () => {
+        await checkHealth();
+        if (++polls >= 60) clearInterval(interval);
+      }, 5000);
+    } else {
+      resultEl.style.color = 'var(--error)';
+      resultEl.textContent = '✗ ' + data.message;
+    }
+  } catch (e) {
+    resultEl.style.color = 'var(--error)';
+    resultEl.textContent = '✗ Request failed: ' + e.message;
+  }
+}
+
 async function testWolShutdown() {
   const resultEl = document.getElementById('wol-test-result');
   resultEl.style.display = '';

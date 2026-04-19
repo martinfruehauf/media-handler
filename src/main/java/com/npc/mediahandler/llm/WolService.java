@@ -91,6 +91,23 @@ public class WolService {
     }
 
     /**
+     * Sends a WOL magic packet immediately without waiting for the machine to respond.
+     * Used by the "Test Wake" button — the health indicator will update as the machine comes up.
+     */
+    public Map<String, Object> sendWakePacketNow() {
+        String mac = configService.getOrDefault(AppConfigService.LLM_WOL_MAC, "b4:a9:fc:cd:58:88");
+        try {
+            sendMagicPacket(mac);
+            state = WolState.WAKING;
+            log.info("Manual WOL wake packet sent to {}", mac);
+            return Map.of("ok", true, "message", "Magic packet sent to " + mac + " — watch the LLM indicator");
+        } catch (Exception e) {
+            log.error("Failed to send WOL packet: {}", e.getMessage());
+            return Map.of("ok", false, "message", e.getMessage());
+        }
+    }
+
+    /**
      * Runs the shutdown command immediately (bypasses the idle timer).
      * Used by the settings UI "Test Shutdown" button.
      */
