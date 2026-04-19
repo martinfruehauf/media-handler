@@ -484,6 +484,10 @@ function applyConfig() {
   toggleDeleteAfter();
   document.getElementById('cfg-folder-cleanup-enabled').checked = config['folder.cleanup.enabled'] !== 'false';
   document.getElementById('cfg-wiki-title-lookup').checked = config['wiki.title.lookup'] === 'true';
+  document.getElementById('cfg-llm-wol-enabled').checked = config['llm.wol.enabled'] !== 'false';
+  setVal('cfg-llm-wol-mac', config['llm.wol.mac']);
+  setVal('cfg-llm-wol-shutdown-cmd', config['llm.wol.shutdown-cmd']);
+  toggleWolFields();
 
   const provider = config['llm.provider'] || 'openai';
   selectProvider(provider, false);
@@ -505,6 +509,11 @@ function setPipelineControlVisible(visible) {
 function toggleDeleteAfter() {
   const copyMode = document.getElementById('cfg-file-copy-mode').checked;
   document.getElementById('delete-after-field').style.display = copyMode ? '' : 'none';
+}
+
+function toggleWolFields() {
+  const enabled = document.getElementById('cfg-llm-wol-enabled').checked;
+  document.getElementById('wol-fields').style.display = enabled ? '' : 'none';
 }
 
 function selectProvider(p, save) {
@@ -544,6 +553,9 @@ async function saveSettings() {
     'file.delete.original.after.hours': getVal('cfg-file-delete-original-after-hours') || '0',
     'folder.cleanup.enabled': document.getElementById('cfg-folder-cleanup-enabled').checked.toString(),
     'wiki.title.lookup': document.getElementById('cfg-wiki-title-lookup').checked.toString(),
+    'llm.wol.enabled':      document.getElementById('cfg-llm-wol-enabled').checked.toString(),
+    'llm.wol.mac':          getVal('cfg-llm-wol-mac'),
+    'llm.wol.shutdown-cmd': getVal('cfg-llm-wol-shutdown-cmd'),
   };
 
   // Strip masked values so we don't overwrite with masks
@@ -643,7 +655,8 @@ async function checkHealth() {
 function updateHealthIndicator(id, status) {
   const el = document.getElementById(id);
   if (!el) return;
-  el.className = 'health-indicator ' + (status.ok ? 'ok' : 'err');
+  const state = status.state || (status.ok ? 'ok' : 'err');
+  el.className = 'health-indicator ' + state;
   el.title = status.message || '';
 }
 

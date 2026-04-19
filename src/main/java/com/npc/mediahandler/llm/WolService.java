@@ -1,0 +1,184 @@
+package com.npc.mediahandler.llm;
+
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import org.springframework.stereotype.Service;
+
+import com.npc.mediahandler.config.AppConfigService;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class WolService {
+
+    public enum WolState { IDLE, WAKING, AWAKE, FAILED }
+
+    private static final int WAKE_POLL_INTERVAL_SECONDS = 5;
+    private static final int WAKE_TIMEOUT_MINUTES = 2;
+    private static final int SHUTDOWN_DELAY_SECONDS = 300; // 5 minutes idle before shutdown
+
+    private final AppConfigService configService;
+
+    private volatile WolState state = WolState.IDLE;
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "wol-scheduler");
+        t.setDaemon(true);
+        return t;
+    });
+    private ScheduledFuture<?> pendingShutdown;
+    private final AtomicInteger activeRequests = new AtomicInteger(0);
+
+    public WolState getState() {
+        return state;
+    }
+
+    public String getStatusMessage() {
+        return switch (state) {
+            case IDLE   -> "Reachable";
+            case WAKING -> "Waking LLM machine via WOL\u2026";
+            case AWAKE  -> "Running (woken via WOL)";
+            case FAILED -> "WOL failed \u2014 LLM unreachable";
+        };
+    }
+
+    /**
+     * Call this after acquiring the LLM semaphore, before sending a request.
+     * If WOL is enabled and the LLM is unreachable, sends a magic packet and
+     * blocks until the machine responds (up to {@value WAKE_TIMEOUT_MINUTES} min).
+     */
+    public void beforeLlmRequest() {
+        activeRequests.incrementAndGet();
+        cancelShutdown();
+
+        if (!"true".equals(configService.get(AppConfigService.LLM_WOL_ENABLED))) return;
+        if (state == WolState.AWAKE) return;
+        if (!isLlmReachable()) {
+            doWake();
+        }
+    }
+
+    /**
+     * Call this in the finally block after releasing the LLM semaphore.
+     * Schedules an automatic machine shutdown after a period of inactivity.
+     */
+    public void afterLlmRequest() {
+        int remaining = activeRequests.decrementAndGet();
+        if (remaining == 0 && (state == WolState.AWAKE || state == WolState.FAILED)) {
+            scheduleShutdown();
+        }
+    }
+
+    // ── Private helpers ────────────────────────────────────────────────────────
+
+    private synchronized void doWake() {
+        if (state == WolState.AWAKE) return;
+        if (isLlmReachable()) return; // came up on its own
+
+        String mac = configService.getOrDefault(AppConfigService.LLM_WOL_MAC, "b4:a9:fc:cd:58:88");
+        log.info("Sending WOL magic packet to {}", mac);
+        state = WolState.WAKING;
+
+        try {
+            new ProcessBuilder("wol", mac).inheritIO().start().waitFor(5, TimeUnit.SECONDS);
+        } catch (IOException e) {
+            log.warn("WOL command failed: {}", e.getMessage());
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            state = WolState.FAILED;
+            return;
+        }
+
+        Instant deadline = Instant.now().plus(Duration.ofMinutes(WAKE_TIMEOUT_MINUTES));
+        while (Instant.now().isBefore(deadline)) {
+            try {
+                Thread.sleep(WAKE_POLL_INTERVAL_SECONDS * 1000L);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                state = WolState.FAILED;
+                return;
+            }
+            if (isLlmReachable()) {
+                log.info("LLM machine is up after WOL wake");
+                state = WolState.AWAKE;
+                return;
+            }
+            log.debug("Waiting for LLM machine to come up...");
+        }
+
+        log.warn("LLM machine did not respond within {} minutes after WOL", WAKE_TIMEOUT_MINUTES);
+        state = WolState.FAILED;
+    }
+
+    private synchronized void scheduleShutdown() {
+        cancelShutdown();
+        log.info("Scheduling LLM machine shutdown in {} seconds", SHUTDOWN_DELAY_SECONDS);
+        pendingShutdown = scheduler.schedule(this::executeShutdown, SHUTDOWN_DELAY_SECONDS, TimeUnit.SECONDS);
+    }
+
+    private void cancelShutdown() {
+        if (pendingShutdown != null && !pendingShutdown.isDone()) {
+            pendingShutdown.cancel(false);
+            log.debug("Cancelled pending LLM machine shutdown");
+            pendingShutdown = null;
+        }
+    }
+
+    private void executeShutdown() {
+        if (activeRequests.get() > 0) {
+            log.info("LLM shutdown deferred — requests still active");
+            return;
+        }
+        String cmd = buildShutdownCmd();
+        log.info("Shutting down LLM machine: {}", cmd);
+        try {
+            String[] parts = cmd.split("\\s+");
+            new ProcessBuilder(parts).inheritIO().start().waitFor(15, TimeUnit.SECONDS);
+            log.info("LLM machine shutdown command sent successfully");
+            state = WolState.IDLE;
+        } catch (Exception e) {
+            log.error("Failed to execute LLM machine shutdown: {}", e.getMessage());
+        }
+    }
+
+    private String buildShutdownCmd() {
+        String custom = configService.get(AppConfigService.LLM_WOL_SHUTDOWN_CMD);
+        if (custom != null && !custom.isBlank()) return custom;
+        String baseUrl = configService.getLlmBaseUrl();
+        try {
+            String host = new URL(baseUrl).getHost();
+            return "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 " + host + " sudo shutdown -h now";
+        } catch (Exception e) {
+            return "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 192.168.178.81 sudo shutdown -h now";
+        }
+    }
+
+    private boolean isLlmReachable() {
+        String provider = configService.getOrDefault(AppConfigService.LLM_PROVIDER, "openai");
+        String baseUrl = "anthropic".equalsIgnoreCase(provider)
+                ? "https://api.anthropic.com"
+                : configService.getLlmBaseUrl();
+        try {
+            URL url = new URL(baseUrl);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setConnectTimeout(3000);
+            conn.setReadTimeout(3000);
+            conn.getResponseCode();
+            conn.disconnect();
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+}

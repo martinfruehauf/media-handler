@@ -88,6 +88,7 @@ public class FilenameParserService {
 
     private final DynamicChatClientProvider chatClientProvider;
     private final LlmResponseParser responseParser;
+    private final WolService wolService;
 
     public MediaMetadata parse(String filename) {
         try {
@@ -98,6 +99,7 @@ public class FilenameParserService {
             return new MediaMetadata(null, null, null, null, null, "Interrupted while waiting for LLM");
         }
         try {
+            wolService.beforeLlmRequest();
             log.info("→ LLM request: '{}'", filename);
             String response = chatClientProvider.getChatClient().prompt()
                     .system(SYSTEM_PROMPT)
@@ -111,6 +113,7 @@ public class FilenameParserService {
             return responseParser.parse(response);
         } finally {
             llmSlot.release();
+            wolService.afterLlmRequest();
         }
     }
 

@@ -12,6 +12,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 import com.npc.mediahandler.config.AppConfigService;
+import com.npc.mediahandler.llm.WolService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 public class HealthController {
 
     private final AppConfigService configService;
+    private final WolService wolService;
 
     @GetMapping
     public Map<String, Object> health() {
@@ -55,6 +57,15 @@ public class HealthController {
     }
 
     private Map<String, Object> checkLlm() {
+        WolService.WolState wolState = wolService.getState();
+
+        if (wolState == WolService.WolState.WAKING) {
+            return Map.of("ok", false, "state", "warn", "message", wolService.getStatusMessage());
+        }
+        if (wolState == WolService.WolState.FAILED) {
+            return Map.of("ok", false, "state", "err", "message", wolService.getStatusMessage());
+        }
+
         String provider = configService.getOrDefault(AppConfigService.LLM_PROVIDER, "openai");
         String baseUrl = "anthropic".equals(provider)
                 ? "https://api.anthropic.com"
@@ -66,9 +77,12 @@ public class HealthController {
             conn.setReadTimeout(3000);
             conn.getResponseCode();
             conn.disconnect();
-            return Map.of("ok", true, "message", "Reachable");
+            if (wolState == WolService.WolState.AWAKE) {
+                return Map.of("ok", true, "state", "warn", "message", wolService.getStatusMessage());
+            }
+            return Map.of("ok", true, "state", "ok", "message", "Reachable");
         } catch (Exception e) {
-            return Map.of("ok", false, "message", "Unreachable");
+            return Map.of("ok", false, "state", "err", "message", "Unreachable");
         }
     }
 }

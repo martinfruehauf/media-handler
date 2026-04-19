@@ -2,7 +2,7 @@ spring:
   ai:
     openai:
       api-key: ollama
-      base-url: http://192.168.178.78:11434
+      base-url: http://192.168.178.81:11434
       chat:
         options:
           model: qwen2.5:14b

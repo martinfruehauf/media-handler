@@ -634,6 +634,8 @@ tr.clickable:hover td { background: var(--surface2); }
 
 .health-indicator.ok { color: var(--success); }
 .health-indicator.ok .health-dot { background: var(--success); }
+.health-indicator.warn { color: var(--warning); }
+.health-indicator.warn .health-dot { background: var(--warning); }
 .health-indicator.err { color: var(--error); }
 .health-indicator.err .health-dot { background: var(--error); }
 
