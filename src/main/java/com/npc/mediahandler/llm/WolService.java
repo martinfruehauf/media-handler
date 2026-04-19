@@ -1,7 +1,9 @@
 package com.npc.mediahandler.llm;
 
-import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.net.HttpURLConnection;
+import java.net.InetAddress;
 import java.net.URL;
 import java.time.Duration;
 import java.time.Instant;
@@ -26,8 +28,8 @@ public class WolService {
     public enum WolState { IDLE, WAKING, AWAKE, FAILED }
 
     private static final int WAKE_POLL_INTERVAL_SECONDS = 5;
-    private static final int WAKE_TIMEOUT_MINUTES = 2;
-    private static final int SHUTDOWN_DELAY_SECONDS = 300; // 5 minutes idle before shutdown
+    private static final int WAKE_TIMEOUT_MINUTES       = 4;
+    private static final int SHUTDOWN_DELAY_SECONDS     = 300; // 5 minutes idle before shutdown
 
     private final AppConfigService configService;
 
@@ -84,23 +86,21 @@ public class WolService {
 
     private synchronized void doWake() {
         if (state == WolState.AWAKE) return;
-        if (isLlmReachable()) return; // came up on its own
+        if (isLlmReachable()) return;
 
         String mac = configService.getOrDefault(AppConfigService.LLM_WOL_MAC, "b4:a9:fc:cd:58:88");
-        log.info("Sending WOL magic packet to {}", mac);
+        log.info("Sending WOL magic packet to {} (native Java UDP broadcast)", mac);
         state = WolState.WAKING;
 
         try {
-            new ProcessBuilder("wol", mac).inheritIO().start().waitFor(5, TimeUnit.SECONDS);
-        } catch (IOException e) {
-            log.warn("WOL command failed: {}", e.getMessage());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            state = WolState.FAILED;
-            return;
+            sendMagicPacket(mac);
+        } catch (Exception e) {
+            log.warn("Failed to send WOL magic packet: {}", e.getMessage());
+            // Continue polling anyway — packet may still have arrived
         }
 
         Instant deadline = Instant.now().plus(Duration.ofMinutes(WAKE_TIMEOUT_MINUTES));
+        int attempt = 0;
         while (Instant.now().isBefore(deadline)) {
             try {
                 Thread.sleep(WAKE_POLL_INTERVAL_SECONDS * 1000L);
@@ -109,16 +109,43 @@ public class WolService {
                 state = WolState.FAILED;
                 return;
             }
+            attempt++;
             if (isLlmReachable()) {
-                log.info("LLM machine is up after WOL wake");
+                log.info("LLM machine is up after WOL wake (attempt {})", attempt);
                 state = WolState.AWAKE;
                 return;
             }
-            log.debug("Waiting for LLM machine to come up...");
+            long secondsLeft = Duration.between(Instant.now(), deadline).getSeconds();
+            log.info("Waiting for LLM machine to come up... (poll #{}, {}s remaining)", attempt, secondsLeft);
         }
 
         log.warn("LLM machine did not respond within {} minutes after WOL", WAKE_TIMEOUT_MINUTES);
         state = WolState.FAILED;
+    }
+
+    /**
+     * Sends a Wake-on-LAN magic packet via UDP broadcast (no external binary required).
+     * The magic packet is: 6×0xFF followed by the target MAC repeated 16 times.
+     */
+    private void sendMagicPacket(String mac) throws Exception {
+        byte[] macBytes = parseMac(mac);
+        byte[] packet   = new byte[6 + 16 * 6];
+        for (int i = 0; i < 6; i++) packet[i] = (byte) 0xFF;
+        for (int i = 0; i < 16; i++) System.arraycopy(macBytes, 0, packet, 6 + i * 6, 6);
+
+        try (DatagramSocket socket = new DatagramSocket()) {
+            socket.setBroadcast(true);
+            InetAddress broadcast = InetAddress.getByName("255.255.255.255");
+            socket.send(new DatagramPacket(packet, packet.length, broadcast, 9));
+        }
+    }
+
+    private byte[] parseMac(String mac) {
+        String[] parts = mac.split("[:\\-]");
+        if (parts.length != 6) throw new IllegalArgumentException("Invalid MAC address: " + mac);
+        byte[] bytes = new byte[6];
+        for (int i = 0; i < 6; i++) bytes[i] = (byte) Integer.parseInt(parts[i], 16);
+        return bytes;
     }
 
     private synchronized void scheduleShutdown() {
