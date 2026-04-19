@@ -263,7 +263,7 @@
 
         <div class="field field--checkbox">
           <label>
-            <input id="cfg-llm-wol-enabled" type="checkbox" onchange="toggleWolFields()" />
+            <input id="cfg-llm-wol-enabled" type="checkbox" checked onchange="toggleWolFields()" />
             Wake LLM machine over LAN when needed, shut it down when idle
           </label>
         </div>
@@ -271,7 +271,7 @@
         <div id="wol-fields">
           <div class="field">
             <label>MAC Address</label>
-            <input id="cfg-llm-wol-mac" type="text" placeholder="b4:a9:fc:cd:58:88" />
+            <input id="cfg-llm-wol-mac" type="text" value="b4:a9:fc:cd:58:88" placeholder="b4:a9:fc:cd:58:88" />
           </div>
           <div class="field">
             <label>Shutdown Command <span style="font-weight:400;color:var(--muted)">(leave blank to auto-derive from LLM host via SSH)</span></label>

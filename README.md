@@ -112,7 +112,7 @@ Configuration works in two layers:
 | `media.retry.interval-ms` | `300000` | How often failed records are retried (ms) |
 | `media.retry.max-attempts` | `5` | Maximum total attempts per record |
 | `spring.ai.openai.api-key` | `ollama` | LLM API key (use `ollama` for local Ollama) |
-| `spring.ai.openai.base-url` | `http://localhost:11434` | LLM base URL |
+| `spring.ai.openai.base-url` | `http://192.168.178.81:11434` | LLM base URL |
 | `spring.ai.openai.chat.options.model` | `qwen2.5:14b` | LLM model name |
 
 ### Local secrets (development profile)
@@ -182,10 +182,43 @@ Open `http://localhost:8080` after starting the service.
 | **TMDB** | Bearer token |
 | **Title Resolution** | Wikipedia German→English translation (default: off) |
 | **LLM Provider** | Provider, API key, base URL, model |
+| **Wake on LAN** | Enable/disable WOL, MAC address, optional shutdown command |
 | **Display** | Date format |
 | **Developer Tools** | Checkbox to show pipeline controls (Running/Stopped + Play/Stop) in the Logs tab; **Update** button to pull the latest release JAR and restart the service |
 
 > **Update source:** The **Update from ShitHub** button pulls from `http://shithub.lan/martin/media-handler` (local Forgejo, LAN only). The **Update from GitHub** button is only enabled after a reachability check — the repository may be private, in which case ask the owner to make it public.
+
+---
+
+## Wake on LAN
+
+The service can automatically wake the LLM machine when a file needs to be processed, and shut it down again after it has been idle for a while.
+
+**Enabled by default.** Configure in the **Wake on LAN** settings card.
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `llm.wol.enabled` | `true` | Send a WOL magic packet before LLM requests when the machine is unreachable |
+| `llm.wol.mac` | `b4:a9:fc:cd:58:88` | MAC address of the LLM machine |
+| `llm.wol.shutdown-cmd` | *(auto-derived)* | Shell command to shut down the LLM machine after idle. Leave blank to auto-build `ssh -o StrictHostKeyChecking=no <llm-host> sudo shutdown -h now` from the configured LLM base URL |
+
+**How it works:**
+
+1. A file arrives in the source folder and is queued for processing.
+2. Before the LLM call the service checks if the LLM endpoint is reachable.
+3. If not, it runs `wol <mac>` and polls the endpoint every 5 seconds for up to 2 minutes.
+4. Once reachable, the LLM call proceeds normally.
+5. After the last LLM call, a 5-minute idle timer starts. When it fires (and no new requests have come in), the shutdown command is executed via SSH.
+
+**Health indicator states (LLM dot in the header):**
+
+| Colour | Meaning |
+|--------|---------|
+| Green | LLM reachable, WOL not involved |
+| Yellow | Machine waking up, or currently running after being woken via WOL |
+| Red | WOL timed out or LLM unreachable |
+
+Hover over the indicator for a detailed status message.
 
 ---
 
