@@ -277,6 +277,12 @@
             <label>Shutdown Command <span style="font-weight:400;color:var(--muted)">(leave blank to auto-derive from LLM host via SSH)</span></label>
             <input id="cfg-llm-wol-shutdown-cmd" type="text" placeholder="ssh user@host sudo shutdown -h now" />
           </div>
+          <div class="field">
+            <label>Resolved Command <span style="font-weight:400;color:var(--muted)">(what will actually run)</span></label>
+            <code id="wol-resolved-cmd" style="font-size:12px;color:var(--muted);word-break:break-all;">—</code>
+          </div>
+          <button class="save-btn" style="margin-top:4px;" onclick="testWolShutdown()">Test Shutdown Now</button>
+          <div id="wol-test-result" style="margin-top:8px;font-size:12px;display:none;"></div>
         </div>
 
       </div>

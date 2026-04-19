@@ -33,7 +33,7 @@ function switchTab(name) {
   document.getElementById('tab-' + name).classList.add('active');
   document.getElementById('nav-' + name).classList.add('active');
 
-  if (name === 'settings') { loadConfig(); document.getElementById('cfg-date-format').value = dateFormat; }
+  if (name === 'settings') { loadConfig(); loadWolStatus(); document.getElementById('cfg-date-format').value = dateFormat; }
 }
 
 // ── Source Folder ─────────────────────────────────────────────────────────────
@@ -514,6 +514,39 @@ function toggleDeleteAfter() {
 function toggleWolFields() {
   const enabled = document.getElementById('cfg-llm-wol-enabled').checked;
   document.getElementById('wol-fields').style.display = enabled ? '' : 'none';
+}
+
+async function loadWolStatus() {
+  try {
+    const res = await fetch('/api/wol/status');
+    if (!res.ok) return;
+    const { shutdownCommand } = await res.json();
+    const el = document.getElementById('wol-resolved-cmd');
+    if (el) el.textContent = shutdownCommand || '—';
+  } catch (e) { /* silent */ }
+}
+
+async function testWolShutdown() {
+  const resultEl = document.getElementById('wol-test-result');
+  resultEl.style.display = '';
+  resultEl.style.color = 'var(--muted)';
+  resultEl.textContent = 'Running shutdown command…';
+  try {
+    const res = await fetch('/api/wol/test-shutdown', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      resultEl.style.color = 'var(--success)';
+      resultEl.textContent = '✓ Success' + (data.output ? ': ' + data.output : '');
+    } else {
+      resultEl.style.color = 'var(--error)';
+      const detail = [data.error, data.output].filter(Boolean).join(' — ');
+      resultEl.innerHTML = '✗ Failed: ' + esc(detail) +
+        '<br><small>Command: ' + esc(data.command) + '</small>';
+    }
+  } catch (e) {
+    resultEl.style.color = 'var(--error)';
+    resultEl.textContent = '✗ Request failed: ' + e.message;
+  }
 }
 
 function selectProvider(p, save) {

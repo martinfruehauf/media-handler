@@ -2,6 +2,7 @@ package com.npc.mediahandler.llm;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.util.Map;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.HttpURLConnection;
@@ -81,6 +82,50 @@ public class WolService {
         int remaining = activeRequests.decrementAndGet();
         if (remaining == 0 && (state == WolState.AWAKE || state == WolState.FAILED)) {
             scheduleShutdown();
+        }
+    }
+
+    /** Returns the shutdown command that will be used (custom or auto-derived). */
+    public String getResolvedShutdownCmd() {
+        return buildShutdownCmd();
+    }
+
+    /**
+     * Runs the shutdown command immediately (bypasses the idle timer).
+     * Used by the settings UI "Test Shutdown" button.
+     */
+    public Map<String, Object> runShutdownNow() {
+        String cmd = buildShutdownCmd();
+        try {
+            String[] parts = cmd.split("\\s+");
+            Process process = new ProcessBuilder(parts)
+                    .redirectErrorStream(true)
+                    .start();
+
+            StringBuilder output = new StringBuilder();
+            try (java.io.BufferedReader reader =
+                         new java.io.BufferedReader(new java.io.InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) output.append(line).append('\n');
+            }
+
+            boolean finished = process.waitFor(15, TimeUnit.SECONDS);
+            String out = output.toString().trim();
+
+            if (!finished) {
+                process.destroyForcibly();
+                return Map.of("ok", false, "command", cmd, "output", out,
+                              "error", "Command timed out after 15s");
+            }
+            int exitCode = process.exitValue();
+            if (exitCode == 0) {
+                state = WolState.IDLE;
+                return Map.of("ok", true, "command", cmd, "output", out, "exitCode", exitCode);
+            }
+            return Map.of("ok", false, "command", cmd, "output", out, "exitCode", exitCode,
+                          "error", "Command exited with code " + exitCode);
+        } catch (Exception e) {
+            return Map.of("ok", false, "command", cmd, "output", "", "error", e.getMessage());
         }
     }
 
