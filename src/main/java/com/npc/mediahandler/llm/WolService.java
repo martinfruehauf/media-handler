@@ -1,5 +1,7 @@
 package com.npc.mediahandler.llm;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.HttpURLConnection;
@@ -168,14 +170,39 @@ public class WolService {
             return;
         }
         String cmd = buildShutdownCmd();
-        log.info("Shutting down LLM machine: {}", cmd);
+        log.info("Running LLM machine shutdown command: {}", cmd);
         try {
             String[] parts = cmd.split("\\s+");
-            new ProcessBuilder(parts).inheritIO().start().waitFor(15, TimeUnit.SECONDS);
-            log.info("LLM machine shutdown command sent successfully");
-            state = WolState.IDLE;
+            Process process = new ProcessBuilder(parts)
+                    .redirectErrorStream(true)
+                    .start();
+
+            // Read output before waitFor to avoid subprocess blocking on full buffer
+            StringBuilder output = new StringBuilder();
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) output.append(line).append('\n');
+            }
+
+            boolean finished = process.waitFor(15, TimeUnit.SECONDS);
+            if (!output.isEmpty()) log.info("Shutdown command output: {}", output.toString().trim());
+
+            if (!finished) {
+                log.warn("Shutdown command timed out after 15s — machine may still be running");
+                process.destroyForcibly();
+                return;
+            }
+            int exitCode = process.exitValue();
+            if (exitCode == 0) {
+                log.info("LLM machine shutdown initiated successfully");
+                state = WolState.IDLE;
+            } else {
+                log.error("Shutdown command exited with code {} — machine may still be running. " +
+                          "Make sure SSH key auth is set up from this host to the LLM machine " +
+                          "(ssh-copy-id) and the user can run 'sudo shutdown' without a password.", exitCode);
+            }
         } catch (Exception e) {
-            log.error("Failed to execute LLM machine shutdown: {}", e.getMessage());
+            log.error("Failed to run LLM machine shutdown command '{}': {}", cmd, e.getMessage());
         }
     }
 
