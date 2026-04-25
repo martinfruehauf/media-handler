@@ -68,7 +68,17 @@ public class FileProcessingService {
         record.setLastAttemptAt(Instant.now());
         repository.save(record);
 
-        Path source = Path.of(record.getSourcePath());
+        Path source;
+        try {
+            source = Path.of(record.getSourcePath());
+        } catch (java.nio.file.InvalidPathException e) {
+            log.warn("Skipping file with unmappable characters in path: {}", record.getSourcePath());
+            record.setStatus(MediaFileStatus.LLM_FAILED);
+            record.setErrorMessage("Filename contains characters that cannot be represented on this filesystem (encoding mismatch). Rename the file to use only ASCII or UTF-8 characters.");
+            record.setProcessingNotes(toJson(List.of(new ProcessingNote("PATH", "invalid path: " + e.getReason()))));
+            repository.save(record);
+            return;
+        }
         if (!Files.exists(source)) {
             log.warn("Source file no longer exists, skipping: {}", source);
             return;
