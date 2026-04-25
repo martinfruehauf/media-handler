@@ -712,6 +712,8 @@ function toast(msg, type) {
 }
 
 // ── Health indicators ─────────────────────────────────────────────────────────
+let healthFastPollTimer = null;
+
 async function checkHealth() {
   try {
     const res = await fetch('/api/health');
@@ -719,6 +721,17 @@ async function checkHealth() {
     const { tmdb, llm } = await res.json();
     updateHealthIndicator('health-tmdb', tmdb);
     updateHealthIndicator('health-llm',  llm);
+    // Poll every 5s while LLM machine is waking so the indicator updates in real time
+    if (llm.pollFast && !healthFastPollTimer) {
+      healthFastPollTimer = setInterval(async () => {
+        await checkHealth();
+        // Stop fast polling once no longer waking
+        if (!llm.pollFast) { clearInterval(healthFastPollTimer); healthFastPollTimer = null; }
+      }, 5000);
+    } else if (!llm.pollFast && healthFastPollTimer) {
+      clearInterval(healthFastPollTimer);
+      healthFastPollTimer = null;
+    }
   } catch (e) { /* silent — don't disrupt normal use on network hiccup */ }
 }
 

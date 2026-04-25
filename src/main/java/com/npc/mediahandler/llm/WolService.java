@@ -68,8 +68,14 @@ public class WolService {
         cancelShutdown();
 
         if (!"true".equals(configService.get(AppConfigService.LLM_WOL_ENABLED))) return;
-        if (state == WolState.AWAKE) return;
-        if (!isLlmReachable()) {
+        if (state == WolState.AWAKE) {
+            log.debug("WOL: machine already awake, skipping wake");
+            return;
+        }
+        if (isLlmReachable()) {
+            log.info("WOL: LLM reachable without waking (machine already on)");
+        } else {
+            log.info("WOL: LLM unreachable — triggering wake sequence");
             doWake();
         }
     }

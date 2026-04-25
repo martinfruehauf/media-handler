@@ -60,7 +60,7 @@ public class HealthController {
         WolService.WolState wolState = wolService.getState();
 
         if (wolState == WolService.WolState.WAKING) {
-            return Map.of("ok", false, "state", "warn", "message", wolService.getStatusMessage());
+            return Map.of("ok", false, "state", "warn", "message", wolService.getStatusMessage(), "pollFast", true);
         }
         if (wolState == WolService.WolState.FAILED) {
             return Map.of("ok", false, "state", "err", "message", wolService.getStatusMessage());
