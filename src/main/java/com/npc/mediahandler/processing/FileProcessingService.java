@@ -1,6 +1,9 @@
 package com.npc.mediahandler.processing;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -49,8 +52,12 @@ public class FileProcessingService {
     @EventListener
     public void onFileReady(FileReadyEvent event) {
         Path source = event.getFile();
+        String rawFilename = source.getFileName().toString();
+        String originalFilename = rawFilename.contains("\uFFFD")
+                ? decodeFilenameOrElse(source, rawFilename)
+                : rawFilename;
         MediaFileRecord record = repository.save(MediaFileRecord.builder()
-                .originalFilename(source.getFileName().toString())
+                .originalFilename(originalFilename)
                 .sourcePath(source.toString())
                 .status(MediaFileStatus.PENDING)
                 .createdAt(Instant.now())
@@ -68,23 +75,19 @@ public class FileProcessingService {
         record.setLastAttemptAt(Instant.now());
         repository.save(record);
 
+        List<ProcessingNote> notes = new ArrayList<>();
+
         Path source;
         try {
             source = Path.of(record.getSourcePath());
         } catch (java.nio.file.InvalidPathException e) {
-            log.warn("Skipping file with unmappable characters in path: {}", record.getSourcePath());
-            record.setStatus(MediaFileStatus.LLM_FAILED);
-            record.setErrorMessage("Filename contains characters that cannot be represented on this filesystem (encoding mismatch). Rename the file to use only ASCII or UTF-8 characters.");
-            record.setProcessingNotes(toJson(List.of(new ProcessingNote("PATH", "invalid path: " + e.getReason()))));
-            repository.save(record);
-            return;
+            source = recoverLegacyPath(record, notes);
+            if (source == null) return;
         }
         if (!Files.exists(source)) {
             log.warn("Source file no longer exists, skipping: {}", source);
             return;
         }
-
-        List<ProcessingNote> notes = new ArrayList<>();
 
         // Step 1 — LLM filename parse (with folder-name fallback)
         String sourceRoot = configService.getOrDefault(
@@ -209,6 +212,122 @@ public class FileProcessingService {
             record.setProcessingNotes(toJson(notes));
             repository.save(record);
         }
+    }
+
+    // ── Legacy-encoded filename recovery ─────────────────────────────────────
+
+    /** Charsets to try (in order) when the JVM's UTF-8 decoding produced U+FFFD replacement chars. */
+    private static final List<Charset> LEGACY_CHARSETS = List.of(
+            StandardCharsets.ISO_8859_1,
+            Charset.forName("windows-1252"),
+            Charset.forName("cp850")
+    );
+
+    /**
+     * Called when {@code Path.of(storedPath)} throws {@link java.nio.file.InvalidPathException}.
+     * Finds the file by listing its parent directory and matching the stored filename string
+     * (both sides will have the same U+FFFD replacement chars), then attempts to decode the
+     * raw filename bytes using common legacy charsets so the LLM receives a clean title.
+     */
+    private Path recoverLegacyPath(MediaFileRecord record, List<ProcessingNote> notes) {
+        String storedPath = record.getSourcePath();
+        int lastSlash = storedPath.lastIndexOf('/');
+        if (lastSlash < 0) {
+            markPathError(record, notes, "Cannot recover: no parent directory in path");
+            return null;
+        }
+        String parentStr   = storedPath.substring(0, lastSlash);
+        String storedName  = storedPath.substring(lastSlash + 1);
+
+        Path parentDir;
+        try {
+            parentDir = Path.of(parentStr);
+        } catch (java.nio.file.InvalidPathException ex) {
+            markPathError(record, notes, "Parent directory path unresolvable: " + ex.getReason());
+            return null;
+        }
+
+        try (Stream<Path> stream = Files.list(parentDir)) {
+            Optional<Path> match = stream
+                    .filter(p -> !Files.isDirectory(p))
+                    .filter(p -> p.getFileName().toString().equals(storedName))
+                    .findFirst();
+
+            if (match.isEmpty()) {
+                markPathError(record, notes, "File not found in parent directory (moved or renamed)");
+                return null;
+            }
+
+            Path recovered = match.get();
+            String decoded = decodeFilename(recovered);
+            if (decoded != null && !decoded.equals(record.getOriginalFilename())) {
+                notes.add(new ProcessingNote("PATH_RECOVERY",
+                        "decoded filename: \"" + decoded + "\" (stored as \"" + record.getOriginalFilename() + "\")"));
+                record.setOriginalFilename(decoded);
+            } else {
+                notes.add(new ProcessingNote("PATH_RECOVERY", "recovered file via directory listing"));
+            }
+            return recovered;
+        } catch (IOException e) {
+            markPathError(record, notes, "Cannot list parent directory: " + e.getMessage());
+            return null;
+        }
+    }
+
+    private void markPathError(MediaFileRecord record, List<ProcessingNote> notes, String msg) {
+        log.warn("Path recovery failed for '{}': {}", record.getSourcePath(), msg);
+        record.setStatus(MediaFileStatus.LLM_FAILED);
+        record.setErrorMessage("Path recovery failed: " + msg);
+        record.setProcessingNotes(toJson(notes));
+        repository.save(record);
+    }
+
+    /**
+     * Returns a better-decoded filename by extracting raw bytes from the file URI and
+     * trying legacy charsets. Returns {@code null} if no improvement over the original.
+     */
+    private String decodeFilename(Path file) {
+        try {
+            String rawPath = file.toUri().getRawPath();
+            int slash = rawPath.lastIndexOf('/');
+            String encoded = slash >= 0 ? rawPath.substring(slash + 1) : rawPath;
+            byte[] bytes = percentDecode(encoded);
+            for (Charset charset : LEGACY_CHARSETS) {
+                String candidate = new String(bytes, charset);
+                if (!candidate.contains("\uFFFD")) {
+                    log.debug("Decoded filename '{}' using {} → '{}'", file.getFileName(), charset.name(), candidate);
+                    return candidate;
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Charset detection failed for {}: {}", file, e.getMessage());
+        }
+        return null;
+    }
+
+    private String decodeFilenameOrElse(Path file, String fallback) {
+        String decoded = decodeFilename(file);
+        return decoded != null ? decoded : fallback;
+    }
+
+    private static byte[] percentDecode(String s) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream(s.length());
+        int i = 0;
+        while (i < s.length()) {
+            char c = s.charAt(i);
+            if (c == '%' && i + 2 < s.length()) {
+                int hi = Character.digit(s.charAt(i + 1), 16);
+                int lo = Character.digit(s.charAt(i + 2), 16);
+                if (hi >= 0 && lo >= 0) {
+                    out.write((hi << 4) | lo);
+                    i += 3;
+                    continue;
+                }
+            }
+            out.write(c & 0xFF);
+            i++;
+        }
+        return out.toByteArray();
     }
 
     private TmdbResult searchTmdb(MediaMetadata metadata) {
