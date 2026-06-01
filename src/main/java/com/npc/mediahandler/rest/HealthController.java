@@ -62,9 +62,6 @@ public class HealthController {
         if (wolState == WolService.WolState.WAKING) {
             return Map.of("ok", false, "state", "warn", "message", wolService.getStatusMessage(), "pollFast", true);
         }
-        if (wolState == WolService.WolState.FAILED) {
-            return Map.of("ok", false, "state", "err", "message", wolService.getStatusMessage());
-        }
 
         String provider = configService.getOrDefault(AppConfigService.LLM_PROVIDER, "openai");
         String baseUrl = "anthropic".equals(provider)
@@ -77,11 +74,18 @@ public class HealthController {
             conn.setReadTimeout(3000);
             conn.getResponseCode();
             conn.disconnect();
+            if (wolState == WolService.WolState.FAILED) {
+                wolService.resetToIdle();  // auto-recover: machine manually turned on
+                return Map.of("ok", true, "state", "ok", "message", "Reachable");
+            }
             if (wolState == WolService.WolState.AWAKE) {
                 return Map.of("ok", true, "state", "warn", "message", wolService.getStatusMessage());
             }
             return Map.of("ok", true, "state", "ok", "message", "Reachable");
         } catch (Exception e) {
+            if (wolState == WolService.WolState.FAILED) {
+                return Map.of("ok", false, "state", "err", "message", wolService.getStatusMessage());
+            }
             return Map.of("ok", false, "state", "err", "message", "Unreachable");
         }
     }

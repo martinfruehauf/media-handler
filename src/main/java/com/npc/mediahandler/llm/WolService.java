@@ -49,6 +49,14 @@ public class WolService {
         return state;
     }
 
+    /** Resets a FAILED state back to IDLE when the LLM has become reachable again. */
+    public synchronized void resetToIdle() {
+        if (state == WolState.FAILED) {
+            log.info("WOL: LLM is now reachable — resetting state from FAILED to IDLE");
+            state = WolState.IDLE;
+        }
+    }
+
     public String getStatusMessage() {
         return switch (state) {
             case IDLE   -> "Reachable";
@@ -74,6 +82,7 @@ public class WolService {
         }
         if (isLlmReachable()) {
             log.info("WOL: LLM reachable without waking (machine already on)");
+            if (state == WolState.FAILED) state = WolState.IDLE;
         } else {
             log.info("WOL: LLM unreachable — triggering wake sequence");
             doWake();
