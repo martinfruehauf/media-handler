@@ -103,6 +103,7 @@ Configuration works in two layers:
 | `media.source-folder` | *(none — set in wizard)* | Folder to watch for new media files |
 | `media.target-folder-movies` | *(none — set in wizard)* | Root folder movies are moved/copied into |
 | `media.target-folder-shows` | *(none — set in wizard)* | Root folder shows are moved/copied into |
+| `media.ignored-folders` | `usenet` | Folders inside the source folder (relative, or absolute paths) that are never scanned, processed, renamed or deleted. Seeds the **Ignored Folders** setting |
 | `media.file-extensions` | mkv mp4 avi m4v mov wmv | Extensions treated as media |
 | `media.poll-interval-ms` | `30000` | How often the source folder is scanned (ms) |
 | `media.stability-threshold-seconds` | `60` | Seconds a file size must be stable before processing |
@@ -188,7 +189,7 @@ Open `http://localhost:8080` after starting the service.
 
 | Card | Settings |
 |------|----------|
-| **Paths** | Source folder, target folders (movies / shows), overwrite existing files, copy mode, delete original after N hours, source folder cleanup |
+| **Paths** | Source folder, target folders (movies / shows), ignored folders inside the source folder (comma-separated, default `usenet`), overwrite existing files, copy mode, delete original after N hours, source folder cleanup |
 | **TMDB** | Bearer token |
 | **Title Resolution** | Wikipedia German→English translation (default: off) |
 | **LLM Provider** | Mode (Local / Remote). Local: binary, model path, model name, threads, port, idle timeout. Remote: provider, API key, base URL, model |

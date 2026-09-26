@@ -27,6 +27,7 @@ import com.npc.mediahandler.config.MediaProperties;
 import com.npc.mediahandler.llm.FilenameParserService;
 import com.npc.mediahandler.media.MediaMetadata;
 import com.npc.mediahandler.monitor.FileReadyEvent;
+import com.npc.mediahandler.monitor.IgnoredFolders;
 import com.npc.mediahandler.tmdb.TmdbResult;
 import com.npc.mediahandler.tmdb.TmdbService;
 import com.npc.mediahandler.wiki.WikipediaTitleService;
@@ -46,6 +47,7 @@ public class FileProcessingService {
     private final AppConfigService configService;
     private final MediaProperties properties;
     private final WikipediaTitleService wikiService;
+    private final IgnoredFolders ignoredFolders;
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -83,6 +85,14 @@ public class FileProcessingService {
         } catch (java.nio.file.InvalidPathException e) {
             source = recoverLegacyPath(record, notes);
             if (source == null) return;
+        }
+        if (ignoredFolders.isIgnored(source)) {
+            // e.g. an old record retried after its folder was added to the ignore list
+            log.info("Source is in an ignored folder, leaving it untouched: {}", source);
+            record.setStatus(MediaFileStatus.SKIPPED);
+            record.setErrorMessage("In ignored folder");
+            repository.save(record);
+            return;
         }
         if (!Files.exists(source)) {
             log.warn("Source file no longer exists, skipping: {}", source);

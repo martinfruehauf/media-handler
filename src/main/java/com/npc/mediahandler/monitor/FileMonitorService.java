@@ -9,7 +9,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Stream;
 
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -28,6 +27,7 @@ public class FileMonitorService {
     private final AppConfigService configService;
     private final ApplicationEventPublisher eventPublisher;
     private final ProcessingGateService gate;
+    private final IgnoredFolders ignoredFolders;
 
     /** Last observed size per file. Updated whenever the size changes. */
     private final Map<Path, Long> lastSeenSizes = new HashMap<>();
@@ -48,11 +48,12 @@ public class FileMonitorService {
     private volatile boolean resetPending = false;
 
     public FileMonitorService(MediaProperties properties, AppConfigService configService,
-            ApplicationEventPublisher eventPublisher, ProcessingGateService gate) {
+            ApplicationEventPublisher eventPublisher, ProcessingGateService gate, IgnoredFolders ignoredFolders) {
         this.properties = properties;
         this.configService = configService;
         this.eventPublisher = eventPublisher;
         this.gate = gate;
+        this.ignoredFolders = ignoredFolders;
     }
 
     /**
@@ -102,8 +103,8 @@ public class FileMonitorService {
 
         Set<Path> foundFiles = new HashSet<>();
 
-        try (Stream<Path> walk = Files.walk(sourceFolder)) {
-            walk.filter(Files::isRegularFile)
+        try {
+            ignoredFolders.walkFiles(sourceFolder).stream()
                 .filter(this::isMediaFile)
                 .forEach(file -> {
                     foundFiles.add(file);

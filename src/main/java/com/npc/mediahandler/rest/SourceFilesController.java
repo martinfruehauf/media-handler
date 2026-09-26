@@ -9,7 +9,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Stream;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -20,6 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.npc.mediahandler.config.AppConfigService;
 import com.npc.mediahandler.config.MediaProperties;
+import com.npc.mediahandler.monitor.IgnoredFolders;
 import com.npc.mediahandler.processing.FileProcessingService;
 import com.npc.mediahandler.processing.MediaFileRecord;
 import com.npc.mediahandler.processing.MediaFileRepository;
@@ -38,6 +38,7 @@ public class SourceFilesController {
     private final MediaProperties properties;
     private final MediaFileRepository repository;
     private final FileProcessingService fileProcessingService;
+    private final IgnoredFolders ignoredFolders;
 
     record RenameRequest(String from, String newName) {}
 
@@ -50,8 +51,8 @@ public class SourceFilesController {
         Path sourceFolder = Paths.get(folderPath);
         if (!Files.isDirectory(sourceFolder)) return Collections.emptyList();
 
-        try (Stream<Path> walk = Files.walk(sourceFolder)) {
-            return walk.filter(Files::isRegularFile)
+        try {
+            return ignoredFolders.walkFiles(sourceFolder).stream()
                     .filter(f -> isMediaFile(f.getFileName().toString()))
                     .map(file -> {
                         long size = 0;
@@ -87,8 +88,8 @@ public class SourceFilesController {
         if (!Files.isDirectory(sourceFolder)) return ResponseEntity.ok(Map.of("queued", 0));
 
         List<MediaFileRecord> toProcess = new java.util.ArrayList<>();
-        try (Stream<Path> walk = Files.walk(sourceFolder)) {
-            walk.filter(Files::isRegularFile)
+        try {
+            ignoredFolders.walkFiles(sourceFolder).stream()
                     .filter(f -> isMediaFile(f.getFileName().toString()))
                     .forEach(file -> {
                         var latest = repository.findTopBySourcePathOrderByIdDesc(file.toString());
@@ -125,6 +126,9 @@ public class SourceFilesController {
     @PostMapping("/rename")
     public ResponseEntity<Map<String, String>> rename(@RequestBody RenameRequest req) {
         Path from = Paths.get(req.from());
+        if (ignoredFolders.isIgnored(from)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "File is in an ignored folder"));
+        }
         if (!Files.isRegularFile(from)) {
             return ResponseEntity.badRequest().body(Map.of("error", "Source file not found"));
         }

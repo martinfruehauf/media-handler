@@ -9,6 +9,8 @@ import java.util.List;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import com.npc.mediahandler.monitor.IgnoredFolders;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -22,6 +24,7 @@ import lombok.extern.slf4j.Slf4j;
 public class OriginalFileCleanupService {
 
     private final MediaFileRepository repository;
+    private final IgnoredFolders ignoredFolders;
 
     @Scheduled(fixedDelayString = "${media.cleanup-interval-ms:1800000}")
     public void deleteExpiredOriginals() {
@@ -31,6 +34,12 @@ public class OriginalFileCleanupService {
         log.info("Cleanup: {} original file(s) scheduled for deletion", due.size());
         for (MediaFileRecord record : due) {
             Path source = Path.of(record.getSourcePath());
+            if (ignoredFolders.isIgnored(source)) {
+                log.info("Original is in an ignored folder, not deleting: {}", source);
+                record.setSourceDeleteAfter(null);
+                repository.save(record);
+                continue;
+            }
             try {
                 if (Files.exists(source)) {
                     Files.delete(source);

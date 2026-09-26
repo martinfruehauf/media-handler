@@ -24,6 +24,7 @@ public class AppConfigService {
     private String openAiModel;
 
     public static final String SOURCE_FOLDER          = "source.folder";
+    public static final String SOURCE_IGNORED_FOLDERS = "source.ignored.folders";
     public static final String TARGET_FOLDER_MOVIES   = "target.folder.movies";
     public static final String TARGET_FOLDER_SHOWS    = "target.folder.shows";
     public static final String TMDB_API_KEY    = "tmdb.api-key";
@@ -60,6 +61,7 @@ public class AppConfigService {
     @PostConstruct
     void seed() {
         setIfAbsent(SOURCE_FOLDER,        properties.getSourceFolder());
+        setIfAbsent(SOURCE_IGNORED_FOLDERS, String.join(",", properties.getIgnoredFolders()));
         setIfAbsent(TARGET_FOLDER_MOVIES, properties.getTargetFolderMovies());
         setIfAbsent(TARGET_FOLDER_SHOWS,  properties.getTargetFolderShows());
         setIfAbsent(TMDB_API_KEY,  properties.getTmdb().getApiKey());

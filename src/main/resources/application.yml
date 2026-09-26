@@ -32,6 +32,8 @@ media:
   source-folder: /mnt/nas/temp
   target-folder-movies: /mnt/nas/movies
   target-folder-shows: /mnt/nas/shows
+  ignored-folders:       # inside the source folder; never scanned, renamed or deleted (editable in Settings)
+    - usenet
   file-extensions:
     - mkv
     - mp4

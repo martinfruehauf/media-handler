@@ -19,6 +19,12 @@ public class MediaProperties {
     /** Root folder where renamed TV show files will be moved to. */
     private String targetFolderShows;
 
+    /**
+     * Folders inside the source folder that are never scanned, processed or deleted
+     * (relative to the source folder, or absolute). Seed for the {@code source.ignored.folders} setting.
+     */
+    private List<String> ignoredFolders = List.of("usenet");
+
     /** File extensions (without dot) to consider as media files. */
     private List<String> fileExtensions = List.of("mkv", "mp4", "avi", "m4v", "mov", "wmv");
 

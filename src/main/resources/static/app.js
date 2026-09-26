@@ -474,6 +474,7 @@ function applyConfig() {
   setVal('cfg-source-folder',        config['source.folder']);
   setVal('cfg-target-folder-movies', config['target.folder.movies']);
   setVal('cfg-target-folder-shows',  config['target.folder.shows']);
+  setVal('cfg-source-ignored-folders', config['source.ignored.folders']);
   setVal('cfg-tmdb-api-key',  config['tmdb.api-key']);
   setVal('cfg-llm-api-key',   config['llm.api-key']);
   setVal('cfg-llm-base-url',  config['llm.base-url']);
@@ -631,6 +632,7 @@ async function saveSettings() {
     'source.folder':        getVal('cfg-source-folder'),
     'target.folder.movies': getVal('cfg-target-folder-movies'),
     'target.folder.shows':  getVal('cfg-target-folder-shows'),
+    'source.ignored.folders': getVal('cfg-source-ignored-folders'),
     'tmdb.api-key':   getVal('cfg-tmdb-api-key'),
     'llm.mode':       config['llm.mode'] || 'local',
     'llm.local.server-binary':        getVal('cfg-llm-local-server-binary'),
