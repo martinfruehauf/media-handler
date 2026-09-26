@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.npc.mediahandler.config.AppConfigService;
 import com.npc.mediahandler.config.MediaProperties;
 import com.npc.mediahandler.monitor.IgnoredFolders;
+import com.npc.mediahandler.monitor.SampleFiles;
 import com.npc.mediahandler.processing.FileProcessingService;
 import com.npc.mediahandler.processing.MediaFileRecord;
 import com.npc.mediahandler.processing.MediaFileRepository;
@@ -39,6 +40,7 @@ public class SourceFilesController {
     private final MediaFileRepository repository;
     private final FileProcessingService fileProcessingService;
     private final IgnoredFolders ignoredFolders;
+    private final SampleFiles sampleFiles;
 
     record RenameRequest(String from, String newName) {}
 
@@ -91,6 +93,7 @@ public class SourceFilesController {
         try {
             ignoredFolders.walkFiles(sourceFolder).stream()
                     .filter(f -> isMediaFile(f.getFileName().toString()))
+                    .filter(f -> !sampleFiles.isSample(f))
                     .forEach(file -> {
                         var latest = repository.findTopBySourcePathOrderByIdDesc(file.toString());
                         // Skip files already being processed or successfully moved

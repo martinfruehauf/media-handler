@@ -45,6 +45,13 @@ public class DynamicChatClientProvider {
     /** Enough for the longest allowed response (name is capped at 120 chars by the grammar). */
     private static final int LOCAL_MAX_TOKENS = 128;
 
+    /**
+     * No automatic retries. Spring AI's default template backs off for up to an hour against an
+     * unreachable host while holding the scan thread; a failed request marks the file LLM_FAILED
+     * instead and RetryService picks it up later.
+     */
+    private static final RetryTemplate NO_RETRY = new RetryTemplate(RetryPolicy.withMaxRetries(0));
+
     private ChatClient cachedClient;
     private List<String> cachedSettings;
 
@@ -72,6 +79,7 @@ public class DynamicChatClientProvider {
             chatModel = AnthropicChatModel.builder()
                     .anthropicApi(anthropicApi)
                     .defaultOptions(AnthropicChatOptions.builder().model(model).build())
+                    .retryTemplate(NO_RETRY)
                     .build();
         } else {
             OpenAiChatOptions options = local
@@ -82,14 +90,11 @@ public class DynamicChatClientProvider {
                             .extraBody(Map.of("grammar", FILENAME_GRAMMAR))  // llama-server extension
                             .build()
                     : OpenAiChatOptions.builder().model(model).build();
-            OpenAiChatModel.Builder builder = OpenAiChatModel.builder()
+            chatModel = OpenAiChatModel.builder()
                     .openAiApi(openAiApi(baseUrl, apiKey))
-                    .defaultOptions(options);
-            if (local) {
-                // Fail fast: a dead local server should mark the file LLM_FAILED, not stall the queue in backoff
-                builder.retryTemplate(new RetryTemplate(RetryPolicy.withMaxRetries(0)));
-            }
-            chatModel = builder.build();
+                    .defaultOptions(options)
+                    .retryTemplate(NO_RETRY)
+                    .build();
         }
 
         cachedClient   = ChatClient.builder(chatModel).build();

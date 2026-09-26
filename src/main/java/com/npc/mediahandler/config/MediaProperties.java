@@ -25,6 +25,12 @@ public class MediaProperties {
      */
     private List<String> ignoredFolders = List.of("usenet");
 
+    /**
+     * Video files whose name contains "sample" and that are no larger than this (MB) are skipped as
+     * release samples. Seed for the {@code source.sample.max-mb} setting.
+     */
+    private long sampleMaxMb = 200;
+
     /** File extensions (without dot) to consider as media files. */
     private List<String> fileExtensions = List.of("mkv", "mp4", "avi", "m4v", "mov", "wmv");
 

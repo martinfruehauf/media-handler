@@ -78,6 +78,17 @@ target-folder-shows/
 
 Every processing attempt is persisted in an H2 database. Each step is recorded as a **processing note** visible in the detail panel. Failed attempts are retried on a configurable schedule.
 
+### Which files are processed
+
+A file in the source folder is treated as a movie or episode when all of these hold:
+
+1. Its extension is in `media.file-extensions`.
+2. It is not inside an **Ignored Folder**.
+3. Its size has not changed for `media.stability-threshold-seconds`.
+4. It is **not a sample**: a file whose name contains `sample` (any case) and that is no larger than the **Sample file limit** (default 200 MB) is skipped and logged. The size check means a real movie with "sample" in its title is still processed. It only runs once the size is stable, so a movie that is still downloading is never mistaken for a sample.
+
+A file whose latest record is `SKIPPED` is not picked up again after a restart. Use **↻ Re-include** to process it.
+
 ---
 
 ## Folder schema
@@ -104,6 +115,7 @@ Configuration works in two layers:
 | `media.target-folder-movies` | *(none — set in wizard)* | Root folder movies are moved/copied into |
 | `media.target-folder-shows` | *(none — set in wizard)* | Root folder shows are moved/copied into |
 | `media.ignored-folders` | `usenet` | Folders inside the source folder (relative, or absolute paths) that are never scanned, processed, renamed or deleted. Seeds the **Ignored Folders** setting |
+| `media.sample-max-mb` | `200` | Files named `*sample*` up to this size (MB) are skipped as release samples. Seeds the **Sample file limit** setting |
 | `media.file-extensions` | mkv mp4 avi m4v mov wmv | Extensions treated as media |
 | `media.poll-interval-ms` | `30000` | How often the source folder is scanned (ms) |
 | `media.stability-threshold-seconds` | `60` | Seconds a file size must be stable before processing |
@@ -189,7 +201,7 @@ Open `http://localhost:8080` after starting the service.
 
 | Card | Settings |
 |------|----------|
-| **Paths** | Source folder, target folders (movies / shows), ignored folders inside the source folder (comma-separated, default `usenet`), overwrite existing files, copy mode, delete original after N hours, source folder cleanup |
+| **Paths** | Source folder, target folders (movies / shows), ignored folders inside the source folder (comma-separated, default `usenet`), sample file limit in MB (default 200), overwrite existing files, copy mode, delete original after N hours, source folder cleanup |
 | **TMDB** | Bearer token |
 | **Title Resolution** | Wikipedia German→English translation (default: off) |
 | **LLM Provider** | Mode (Local / Remote). Local: binary, model path, model name, threads, port, idle timeout. Remote: provider, API key, base URL, model |
@@ -280,11 +292,11 @@ Hover over the indicator for a detailed status message.
 | Status | Meaning |
 |--------|---------|
 | `PENDING` | Queued or first attempt in progress |
-| `LLM_FAILED` | LLM could not parse the filename |
+| `LLM_FAILED` | LLM could not parse the filename, or could not be reached (no automatic back-off — the retry scheduler picks it up) |
 | `TMDB_FAILED` | TMDB returned no results (after optional Wikipedia retry) |
 | `MOVE_FAILED` | File system move/copy failed |
 | `MOVED` | Successfully processed — file is at target path |
-| `SKIPPED` | Target file already exists and overwrite is disabled, or manually excluded — use **↻ Re-include** to re-queue |
+| `SKIPPED` | Target file already exists and overwrite is disabled, file is a sample, or manually excluded — use **↻ Re-include** to re-queue |
 
 ---
 
@@ -301,7 +313,7 @@ When a file is **moved** (not copied), the service can automatically clean up th
 The cleanup runs immediately after a successful move:
 
 1. All non-video files (`.nfo`, `.jpg`, `.srt`, `.sfv`, etc.) are deleted silently.
-2. Video files smaller than **50 MB** are treated as sample clips and deleted. Each one is logged with its size as a `FOLDER_CLEANUP` step in the processing history.
+2. Video files smaller than **50 MB**, and sample files (see [Which files are processed](#which-files-are-processed)), are deleted. Each one is logged with its size as a `FOLDER_CLEANUP` step in the processing history.
 3. If the folder is now empty it is removed and recorded as `FOLDER_DELETED` in the processing history.
 
 The source root itself is never touched — only immediate subfolders the processed file came from.
@@ -317,6 +329,19 @@ Enabled per-file via the **Title Resolution** setting (default: off). When a TMD
 3. Retries TMDB with the English title.
 
 All steps appear in the **Processing Steps** section of the detail panel.
+
+---
+
+## Server logs
+
+Besides the journal (`journalctl -u mediahandler`), the service writes a rolling log file to `./logs/mediahandler.log` (10 MB per file, 7 days, 100 MB total). It can be read over HTTP without logging into the container, through Spring Boot Actuator:
+
+```bash
+# whole current file
+curl http://<container-ip>:8080/actuator/logfile
+# last ~100 KB only
+curl -H 'Range: bytes=-100000' http://<container-ip>:8080/actuator/logfile
+```
 
 ---
 

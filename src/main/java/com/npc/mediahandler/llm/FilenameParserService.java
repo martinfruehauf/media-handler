@@ -5,6 +5,7 @@ import java.util.concurrent.Semaphore;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
@@ -90,6 +91,7 @@ public class FilenameParserService {
             """;
 
     private static final String LOCAL_UNAVAILABLE = "Local LLM unavailable: ";
+    private static final String REQUEST_FAILED    = "LLM request failed: ";
 
     private final DynamicChatClientProvider chatClientProvider;
     private final LlmResponseParser responseParser;
@@ -117,11 +119,19 @@ public class FilenameParserService {
                 wolService.beforeLlmRequest();
             }
             log.info("→ LLM request: '{}'", filename);
-            String response = chatClientProvider.getChatClient().prompt()
-                    .system(SYSTEM_PROMPT)
-                    .user(filename)
-                    .call()
-                    .content();
+            String response;
+            try {
+                response = chatClientProvider.getChatClient().prompt()
+                        .system(SYSTEM_PROMPT)
+                        .user(filename)
+                        .call()
+                        .content();
+            } catch (RuntimeException e) {
+                // e.g. LLM machine unreachable — fail this file instead of propagating into the scan loop
+                String reason = ExceptionUtils.getRootCauseMessage(e);
+                log.warn("LLM request failed for '{}': {}", filename, reason);
+                return new MediaMetadata(null, null, null, null, null, REQUEST_FAILED + reason);
+            }
             String preview = response != null
                     ? StringUtils.left(response.replaceAll("\\s+", " "), 200)
                     : "null";
@@ -142,8 +152,11 @@ public class FilenameParserService {
         // Attempt 1: filename alone
         MediaMetadata result = parse(filename);
         if (isComplete(result)) return result;
-        // No point retrying with the folder name if the server itself could not start
-        if (result.isError() && result.error().startsWith(LOCAL_UNAVAILABLE)) return result;
+        // No point retrying with the folder name if the LLM itself could not be reached
+        if (result.isError()
+                && (result.error().startsWith(LOCAL_UNAVAILABLE) || result.error().startsWith(REQUEST_FAILED))) {
+            return result;
+        }
 
         if (StringUtils.isNotBlank(folderName)) {
             // Attempt 2: folder name alone

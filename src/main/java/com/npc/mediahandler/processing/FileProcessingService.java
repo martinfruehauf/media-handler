@@ -28,6 +28,7 @@ import com.npc.mediahandler.llm.FilenameParserService;
 import com.npc.mediahandler.media.MediaMetadata;
 import com.npc.mediahandler.monitor.FileReadyEvent;
 import com.npc.mediahandler.monitor.IgnoredFolders;
+import com.npc.mediahandler.monitor.SampleFiles;
 import com.npc.mediahandler.tmdb.TmdbResult;
 import com.npc.mediahandler.tmdb.TmdbService;
 import com.npc.mediahandler.wiki.WikipediaTitleService;
@@ -48,6 +49,7 @@ public class FileProcessingService {
     private final MediaProperties properties;
     private final WikipediaTitleService wikiService;
     private final IgnoredFolders ignoredFolders;
+    private final SampleFiles sampleFiles;
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -58,13 +60,22 @@ public class FileProcessingService {
         String originalFilename = rawFilename.contains("\uFFFD")
                 ? decodeFilenameOrElse(source, rawFilename)
                 : rawFilename;
-        MediaFileRecord record = repository.save(MediaFileRecord.builder()
+        // The monitor re-publishes every file after a restart. Continue the file's open record
+        // instead of adding a duplicate; SKIPPED stays skipped until the user re-includes it.
+        Optional<MediaFileRecord> latest = repository.findTopBySourcePathOrderByIdDesc(source.toString())
+                .filter(r -> r.getStatus() != MediaFileStatus.MOVED);
+        if (latest.isPresent() && latest.get().getStatus() == MediaFileStatus.SKIPPED) {
+            log.info("File was skipped before ({}), not processing again: {}",
+                    latest.get().getErrorMessage(), source);
+            return;
+        }
+        MediaFileRecord record = latest.orElseGet(() -> repository.save(MediaFileRecord.builder()
                 .originalFilename(originalFilename)
                 .sourcePath(source.toString())
                 .status(MediaFileStatus.PENDING)
                 .createdAt(Instant.now())
                 .retryCount(0)
-                .build());
+                .build()));
         execute(record);
     }
 
@@ -96,6 +107,13 @@ public class FileProcessingService {
         }
         if (!Files.exists(source)) {
             log.warn("Source file no longer exists, skipping: {}", source);
+            return;
+        }
+        if (sampleFiles.isSample(source)) {
+            log.info("Source is a sample file, leaving it untouched: {}", source);
+            record.setStatus(MediaFileStatus.SKIPPED);
+            record.setErrorMessage("Sample file (name contains 'sample', ≤ %d MB)".formatted(sampleFiles.maxMb()));
+            repository.save(record);
             return;
         }
 
@@ -131,7 +149,7 @@ public class FileProcessingService {
                         record.getOriginalFilename(), metadata.name(), metadata.type(), seInfo)));
 
         // Step 2a — TMDB (first attempt, original name)
-        TmdbResult tmdbResult = searchTmdb(metadata);
+        TmdbResult tmdbResult = searchTmdb(metadata, notes);
 
         if (tmdbResult != null) {
             notes.add(new ProcessingNote("TMDB_1", "found: id=%s, name=\"%s\"".formatted(
@@ -149,7 +167,7 @@ public class FileProcessingService {
                 MediaMetadata metadataEn = new MediaMetadata(
                         metadata.type(), enTitle.get(), metadata.year(),
                         metadata.season(), metadata.episode(), metadata.error());
-                tmdbResult = searchTmdb(metadataEn);
+                tmdbResult = searchTmdb(metadataEn, notes);
 
                 if (tmdbResult != null) {
                     notes.add(new ProcessingNote("TMDB_2",
@@ -340,10 +358,17 @@ public class FileProcessingService {
         return out.toByteArray();
     }
 
-    private TmdbResult searchTmdb(MediaMetadata metadata) {
-        return metadata.isMovie()
-                ? tmdbService.searchMovie(metadata.name(), metadata.year())
-                : tmdbService.searchShow(metadata.name(), metadata.year());
+    /** Returns null when nothing was found or TMDB could not be reached (the error is added to the notes). */
+    private TmdbResult searchTmdb(MediaMetadata metadata, List<ProcessingNote> notes) {
+        try {
+            return metadata.isMovie()
+                    ? tmdbService.searchMovie(metadata.name(), metadata.year())
+                    : tmdbService.searchShow(metadata.name(), metadata.year());
+        } catch (RuntimeException e) {
+            log.warn("TMDB request failed for '{}': {}", metadata.name(), e.getMessage());
+            notes.add(new ProcessingNote("TMDB_ERROR", String.valueOf(e.getMessage())));
+            return null;
+        }
     }
 
     private String toJson(List<ProcessingNote> notes) {
@@ -423,7 +448,7 @@ public class FileProcessingService {
             } else {
                 try {
                     long size = Files.size(file);
-                    if (size < sampleThresholdBytes) {
+                    if (size < sampleThresholdBytes || sampleFiles.isSample(file, size)) {
                         Files.deleteIfExists(file);
                         String sizeStr = formatSize(size);
                         log.info("Deleted small video file during folder cleanup: {} ({})", file, sizeStr);

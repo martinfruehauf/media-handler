@@ -209,6 +209,10 @@
           <label>Ignored Folders <span style="font-weight:400;color:var(--muted)">(inside the source folder, comma-separated — never scanned, renamed or deleted)</span></label>
           <input id="cfg-source-ignored-folders" type="text" placeholder="usenet, downloads/incomplete" />
         </div>
+        <div class="field">
+          <label>Sample file limit (MB) <span style="font-weight:400;color:var(--muted)">(video files named "*sample*" up to this size are skipped)</span></label>
+          <input id="cfg-source-sample-max-mb" type="number" min="0" step="1" placeholder="200" style="width:120px;" />
+        </div>
         <div class="field field--checkbox">
           <label>
             <input id="cfg-folder-cleanup-enabled" type="checkbox" checked />

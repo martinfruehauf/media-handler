@@ -35,3 +35,4 @@ build/
 ### Local secrets ###
 src/main/resources/application-development.yml
 data/
+logs/

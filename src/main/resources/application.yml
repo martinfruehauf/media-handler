@@ -34,12 +34,28 @@ spring:
       enabled: true
       path: /h2-console
 
+logging:
+  file:
+    name: ./logs/mediahandler.log   # also read remotely via GET /actuator/logfile
+  logback:
+    rollingpolicy:
+      max-file-size: 10MB
+      max-history: 7
+      total-size-cap: 100MB
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: logfile   # tail: curl -H 'Range: bytes=-100000' http://<host>:8080/actuator/logfile
+
 media:
   source-folder: /mnt/nas/temp
   target-folder-movies: /mnt/nas/movies
   target-folder-shows: /mnt/nas/shows
   ignored-folders:       # inside the source folder; never scanned, renamed or deleted (editable in Settings)
     - usenet
+  sample-max-mb: 200   # video files named "*sample*" up to this size are skipped, never processed (editable in Settings)
   file-extensions:
     - mkv
     - mp4

@@ -28,6 +28,7 @@ public class FileMonitorService {
     private final ApplicationEventPublisher eventPublisher;
     private final ProcessingGateService gate;
     private final IgnoredFolders ignoredFolders;
+    private final SampleFiles sampleFiles;
 
     /** Last observed size per file. Updated whenever the size changes. */
     private final Map<Path, Long> lastSeenSizes = new HashMap<>();
@@ -48,12 +49,14 @@ public class FileMonitorService {
     private volatile boolean resetPending = false;
 
     public FileMonitorService(MediaProperties properties, AppConfigService configService,
-            ApplicationEventPublisher eventPublisher, ProcessingGateService gate, IgnoredFolders ignoredFolders) {
+            ApplicationEventPublisher eventPublisher, ProcessingGateService gate, IgnoredFolders ignoredFolders,
+            SampleFiles sampleFiles) {
         this.properties = properties;
         this.configService = configService;
         this.eventPublisher = eventPublisher;
         this.gate = gate;
         this.ignoredFolders = ignoredFolders;
+        this.sampleFiles = sampleFiles;
     }
 
     /**
@@ -156,10 +159,21 @@ public class FileMonitorService {
         long threshold = properties.getStabilityThresholdSeconds();
 
         if (stableSeconds >= threshold) {
+            publishedFiles.add(file);
+            // Checked only once the size is final — a real movie is also small while it's still downloading
+            if (sampleFiles.isSample(file, currentSize)) {
+                log.info("Skipping sample file ({} bytes, name contains 'sample', limit {} MB): {}",
+                        currentSize, sampleFiles.maxMb(), file);
+                return;
+            }
             log.info("File is stable for {}s (threshold {}s), publishing ready event: {}",
                     stableSeconds, threshold, file.getFileName());
-            publishedFiles.add(file);
-            eventPublisher.publishEvent(new FileReadyEvent(this, file));
+            try {
+                eventPublisher.publishEvent(new FileReadyEvent(this, file));
+            } catch (RuntimeException e) {
+                // Keep scanning the remaining files; the record's status tells what went wrong
+                log.error("Processing failed for {}: {}", file, e.getMessage(), e);
+            }
         } else {
             log.debug("File size stable for {}s / {}s: {}", stableSeconds, threshold, file.getFileName());
         }

@@ -323,8 +323,8 @@ function renderTable() {
     <tr class="clickable" onclick="toggleDetail(${r.id})" data-id="${r.id}">
       <td><span class="filename" title="${esc(r.originalFilename)}">${esc(r.originalFilename)}</span></td>
       <td>${badge(r.status)}</td>
-      <td>${fmtDate(r.createdAt)}</td>
-      <td>${fmtDate(r.lastAttemptAt) || '—'}</td>
+      <td>${fmtDateTime(r.createdAt)}</td>
+      <td>${fmtDateTime(r.lastAttemptAt) || '—'}</td>
     </tr>
   `).join('');
 
@@ -475,6 +475,7 @@ function applyConfig() {
   setVal('cfg-target-folder-movies', config['target.folder.movies']);
   setVal('cfg-target-folder-shows',  config['target.folder.shows']);
   setVal('cfg-source-ignored-folders', config['source.ignored.folders']);
+  setVal('cfg-source-sample-max-mb', config['source.sample.max-mb'] || '200');
   setVal('cfg-tmdb-api-key',  config['tmdb.api-key']);
   setVal('cfg-llm-api-key',   config['llm.api-key']);
   setVal('cfg-llm-base-url',  config['llm.base-url']);
@@ -633,6 +634,7 @@ async function saveSettings() {
     'target.folder.movies': getVal('cfg-target-folder-movies'),
     'target.folder.shows':  getVal('cfg-target-folder-shows'),
     'source.ignored.folders': getVal('cfg-source-ignored-folders'),
+    'source.sample.max-mb':   getVal('cfg-source-sample-max-mb') || '200',
     'tmdb.api-key':   getVal('cfg-tmdb-api-key'),
     'llm.mode':       config['llm.mode'] || 'local',
     'llm.local.server-binary':        getVal('cfg-llm-local-server-binary'),
@@ -708,16 +710,15 @@ function applyDateFormat(d) {
     .replace('DD',   pad(d.getDate()));
 }
 
-function fmtDate(iso) {
+function fmtDateTime(iso) {
   if (!iso) return null;
-  return applyDateFormat(new Date(iso));
+  const d = new Date(iso);
+  const pad = n => String(n).padStart(2, '0');
+  return `${applyDateFormat(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
 function fmtDateFull(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  const pad = n => String(n).padStart(2, '0');
-  return `${applyDateFormat(d)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return fmtDateTime(iso) || '—';
 }
 
 function setDateFormat(fmt) {
