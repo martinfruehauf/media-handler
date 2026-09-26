@@ -100,9 +100,10 @@ w_password ROOT_PW
 w_yesno   SSH_ACCESS "Enable root SSH access?" "N"
 
 # ── resources ─────────────────────────────────────────────────────────────────
-w_input   DISK_SIZE "Disk size (GB)"  "4"
-w_input   RAM       "RAM (MB)"        "1024"
-w_input   CPU_CORES "CPU cores"       "2"
+# Sized for the local LLM (llama-server + ~1.1 GB Qwen2.5-1.5B model, ~1.8 GB RSS while loaded)
+w_input   DISK_SIZE "Disk size (GB)"  "8"
+w_input   RAM       "RAM (MB)"        "3072"
+w_input   CPU_CORES "CPU cores"       "4"
 w_yesno   UNPRIVILEGED "Unprivileged container?" "Y"
 
 # ── network ───────────────────────────────────────────────────────────────────

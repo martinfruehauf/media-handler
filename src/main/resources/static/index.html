@@ -43,6 +43,14 @@
 
     <div class="setup-section-label">LLM</div>
     <div class="field">
+      <label>Mode</label>
+      <div class="provider-toggle">
+        <button class="provider-btn active" data-llm-mode="local" onclick="suSelectLlmMode('local')">Local (this container)</button>
+        <button class="provider-btn" data-llm-mode="remote" onclick="suSelectLlmMode('remote')">Remote</button>
+      </div>
+    </div>
+    <div id="su-llm-remote-fields" style="display:none;">
+    <div class="field">
       <label>Provider</label>
       <div class="provider-toggle">
         <button class="provider-btn active" data-provider="openai" onclick="suSelectProvider('openai')">OpenAI / Ollama</button>
@@ -52,6 +60,7 @@
     <div class="field"><label>API Key</label><input id="su-llm-key" type="password" placeholder="sk-... or ollama" value="ollama" /></div>
     <div class="field" id="su-llm-url-field"><label>Base URL</label><input id="su-llm-url" type="text" value="http://192.168.178.81:11434" /></div>
     <div class="field"><label>Model</label><input id="su-llm-model" type="text" value="qwen2.5:14b" /></div>
+    </div>
 
     <div id="su-test-results" class="su-test-results" style="display:none;">
       <div class="su-test-row" id="su-test-tmdb">
@@ -232,6 +241,42 @@
       <div class="settings-grid">
 
         <div class="field">
+          <label>Mode</label>
+          <div class="provider-toggle">
+            <button class="provider-btn" data-llm-mode="local"  onclick="selectLlmMode('local', true)">Local (this container)</button>
+            <button class="provider-btn" data-llm-mode="remote" onclick="selectLlmMode('remote', true)">Remote</button>
+          </div>
+        </div>
+
+        <div id="llm-local-fields">
+          <div class="field">
+            <label>llama-server Binary</label>
+            <input id="cfg-llm-local-server-binary" type="text" placeholder="/opt/llama.cpp/llama-server" />
+          </div>
+          <div class="field">
+            <label>Model Path <span style="font-weight:400;color:var(--muted)">(GGUF file)</span></label>
+            <input id="cfg-llm-local-model-path" type="text" placeholder="/opt/mediahandler/models/qwen2.5-1.5b-instruct-q4_k_m.gguf" />
+          </div>
+          <div class="field">
+            <label>Model Name</label>
+            <input id="cfg-llm-local-model-name" type="text" placeholder="qwen2.5-1.5b-instruct" />
+          </div>
+          <div class="field">
+            <label>Threads <span style="font-weight:400;color:var(--muted)">(match the container's CPU cores)</span></label>
+            <input id="cfg-llm-local-threads" type="number" min="1" placeholder="4" />
+          </div>
+          <div class="field">
+            <label>Port <span style="font-weight:400;color:var(--muted)">(127.0.0.1 only)</span></label>
+            <input id="cfg-llm-local-port" type="number" min="1" max="65535" placeholder="8081" />
+          </div>
+          <div class="field">
+            <label>Stop After Idle (seconds) <span style="font-weight:400;color:var(--muted)">(0 = keep running)</span></label>
+            <input id="cfg-llm-local-idle-timeout" type="number" min="0" placeholder="600" />
+          </div>
+        </div>
+
+        <div id="llm-remote-fields">
+        <div class="field">
           <label>Provider</label>
           <div class="provider-toggle">
             <button class="provider-btn" data-provider="openai"    onclick="selectProvider('openai', true)">OpenAI / Ollama</button>
@@ -253,11 +298,12 @@
           <label>Model</label>
           <input id="cfg-llm-model" type="text" placeholder="qwen2.5:14b" />
         </div>
+        </div>
 
       </div>
     </div>
 
-    <div class="card">
+    <div class="card" id="wol-card">
       <div class="card-title">Wake on LAN</div>
       <div class="settings-grid">
 

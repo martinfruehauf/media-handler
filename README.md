@@ -40,7 +40,7 @@ The wizard collects:
 | Target — Movies | ✓ | Root folder for processed movies (e.g. `/mnt/nas/movies`) |
 | Target — Shows | ✓ | Root folder for processed shows (e.g. `/mnt/nas/shows`) |
 | TMDB API Key | ✓ | Bearer token from [themoviedb.org](https://www.themoviedb.org/settings/api) |
-| LLM Provider / Key / URL / Model | ✓ | Required — without a working LLM every file fails at the parse step. Defaults to a local Ollama instance (`http://localhost:11434`, model `qwen2.5:14b`); use `ollama` as the API key for local Ollama |
+| LLM Mode | ✓ | **Local** (default) uses the llama-server + model installed in the container by `install.sh`. **Remote** asks for Provider / Key / URL / Model of an OpenAI-compatible (e.g. Ollama) or Anthropic endpoint |
 
 All values can be changed at any time in the **Settings** tab.
 
@@ -111,6 +111,16 @@ Configuration works in two layers:
 | `media.retry.enabled` | `false` | Enable automatic retry of failed records |
 | `media.retry.interval-ms` | `300000` | How often failed records are retried (ms) |
 | `media.retry.max-attempts` | `5` | Maximum total attempts per record |
+| `media.llm.mode` | `local` | `local` = llama-server in this container, `remote` = the `spring.ai.openai.*` / Anthropic endpoint below. Existing installs upgrading from a version without this setting stay on `remote` |
+| `media.llm.local.server-binary` | `/opt/llama.cpp/llama-server` | llama.cpp server binary |
+| `media.llm.local.model-path` | `/opt/mediahandler/models/qwen2.5-1.5b-instruct-q4_k_m.gguf` | GGUF model file |
+| `media.llm.local.model-name` | `qwen2.5-1.5b-instruct` | Model alias sent in requests |
+| `media.llm.local.threads` | `4` | Inference threads — match the container's cores |
+| `media.llm.local.port` | `8081` | llama-server port (bound to 127.0.0.1) |
+| `media.llm.local.ctx-size` | `2048` | Context size in tokens |
+| `media.llm.local.idle-timeout-seconds` | `600` | Stop llama-server after this idle time; `0` = keep running |
+| `media.llm.local.startup-timeout-seconds` | `120` | Max wait for the model to load |
+| `media.llm.local.extra-args` | *(empty)* | Extra llama-server arguments |
 | `spring.ai.openai.api-key` | `ollama` | LLM API key (use `ollama` for local Ollama) |
 | `spring.ai.openai.base-url` | `http://192.168.178.81:11434` | LLM base URL |
 | `spring.ai.openai.chat.options.model` | `qwen2.5:14b` | LLM model name |
@@ -181,8 +191,8 @@ Open `http://localhost:8080` after starting the service.
 | **Paths** | Source folder, target folders (movies / shows), overwrite existing files, copy mode, delete original after N hours, source folder cleanup |
 | **TMDB** | Bearer token |
 | **Title Resolution** | Wikipedia German→English translation (default: off) |
-| **LLM Provider** | Provider, API key, base URL, model |
-| **Wake on LAN** | Enable/disable WOL, MAC address, optional shutdown command |
+| **LLM Provider** | Mode (Local / Remote). Local: binary, model path, model name, threads, port, idle timeout. Remote: provider, API key, base URL, model |
+| **Wake on LAN** | Enable/disable WOL, MAC address, optional shutdown command (remote mode only) |
 | **Display** | Date format |
 | **Developer Tools** | Checkbox to show pipeline controls (Running/Stopped + Play/Stop) in the Logs tab; **Update** button to pull the latest release JAR and restart the service |
 
@@ -190,9 +200,51 @@ Open `http://localhost:8080` after starting the service.
 
 ---
 
+## Local LLM (default)
+
+Filename cleanup runs on a small instruct model (Qwen2.5-1.5B-Instruct, Q4_K_M GGUF) served by llama.cpp's `llama-server` on the CPU, inside the same LXC.
+
+- **Started on demand.** MediaHandler launches `llama-server` (127.0.0.1 only) when a file needs parsing and stops it after `idle-timeout-seconds` without requests. Loading takes a second or two, and the ~1.8 GB of RAM is only used while files are being processed. Set the timeout to `0` to keep it loaded. If something already answers on the configured port (for example a llama-server you run yourself), MediaHandler uses it and never stops it.
+- **Output format is enforced** with a GBNF grammar (`src/main/resources/llm/filename-metadata.gbnf`), so the model can only produce the `type:/name:/year:/season:/episode:` (or `error:`) lines the parser expects.
+- **Invented values are dropped.** Small models like to add a plausible year or `S01E01` that isn't in the filename. In local mode, year and season/episode are kept only if they appear in the input (`2019`, `S03E07`, `3x07`). Otherwise the file goes through the usual folder-name fallback or fails with "missing season or episode" instead of being renamed wrongly.
+- Server output of the current run: `data/llama-server.log`.
+
+### LXC setup
+
+New containers: `setup-lxc.sh` now defaults to **4 cores, 3072 MB RAM, 8 GB disk**, and `install.sh` installs everything:
+
+1. `libgomp1` and `libssl3`, plus the prebuilt llama.cpp CPU build (`llama-<tag>-bin-ubuntu-x64.tar.gz`) unpacked to `/opt/llama.cpp/`. Pin a version with `--llama-cpp-tag b11201`.
+2. The model downloaded to `/opt/mediahandler/models/` (override with `--model-url`).
+3. `MEDIA_LLM_LOCAL_THREADS=$(nproc)` in `/etc/mediahandler.env`.
+4. `KillMode=control-group` in `mediahandler.service`, so stopping the service also stops llama-server. There's no separate unit for llama-server.
+
+Use `--skip-local-llm` to install without it (MediaHandler then starts in remote mode).
+
+Existing containers:
+
+```bash
+# on the Proxmox host
+pct set <ctid> --cores 4 --memory 3072
+pct resize <ctid> rootfs +4G
+
+# inside the container
+curl -fsSL -o /tmp/install.sh https://raw.githubusercontent.com/martinfruehauf/media-handler/main/scripts/install.sh
+bash /tmp/install.sh --local-llm-only
+```
+
+Then set **Settings → LLM Provider → Mode** to **Local**, set **Threads** to the core count, and save. Upgraded installs keep using the remote LLM until you switch.
+
+Integration test against a real model (skipped by default):
+
+```bash
+./mvnw test -Dtest=LocalLlmRealModelTest -Dllama.server=/opt/llama.cpp/llama-server -Dllama.model=/opt/mediahandler/models/qwen2.5-1.5b-instruct-q4_k_m.gguf
+```
+
+---
+
 ## Wake on LAN
 
-The service can automatically wake the LLM machine when a file needs to be processed, and shut it down again after it has been idle for a while.
+Only used in **remote** LLM mode. The service can automatically wake the LLM machine when a file needs to be processed, and shut it down again after it has been idle for a while.
 
 **Enabled by default.** Configure in the **Wake on LAN** settings card.
 
@@ -277,7 +329,7 @@ The H2 console is available at `http://localhost:8080/h2-console` while the app 
 
 ## Running
 
-**Prerequisites:** Java 21, Maven, a running Ollama instance (or any OpenAI-compatible endpoint or Anthropic API key).
+**Prerequisites:** Java 21, Maven, and either llama.cpp's `llama-server` + a GGUF model (local mode) or a running Ollama instance / OpenAI-compatible endpoint / Anthropic API key (remote mode).
 
 ```bash
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=development

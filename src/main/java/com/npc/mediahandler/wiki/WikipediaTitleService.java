@@ -26,10 +26,12 @@ public class WikipediaTitleService {
      * or empty if the lookup is disabled, nothing was found, or an error occurred.
      */
     public Optional<String> findEnglishTitle(String germanTitle) {
-        if (!isEnabled()) return Optional.empty();
+        if (!isEnabled())
+            return Optional.empty();
         try {
             String deTitle = searchDe(germanTitle);
-            if (deTitle == null) return Optional.empty();
+            if (deTitle == null)
+                return Optional.empty();
 
             String enTitle = getEnLink(deTitle);
             if (enTitle != null) {

@@ -48,6 +48,40 @@ public class MediaProperties {
         private String baseUrl = "https://api.themoviedb.org/3";
     }
 
+    private Llm llm = new Llm();
+
+    @Data
+    public static class Llm {
+        /**
+         * "local" — llama-server in this container, started on demand (default for fresh installs);
+         * "remote" — the OpenAI-compatible / Anthropic endpoint configured under llm.provider etc.
+         */
+        private String mode = "local";
+        private Local local = new Local();
+    }
+
+    @Data
+    public static class Local {
+        /** Path to the llama.cpp llama-server binary. */
+        private String serverBinary = "/opt/llama.cpp/llama-server";
+        /** Path to the GGUF model file. */
+        private String modelPath = "/opt/mediahandler/models/qwen2.5-1.5b-instruct-q4_k_m.gguf";
+        /** Model name (llama-server --alias); sent as "model" in requests and shown in logs. */
+        private String modelName = "qwen2.5-1.5b-instruct";
+        /** CPU threads for inference — set to the container's core count. */
+        private int threads = 4;
+        /** Port llama-server listens on (bound to 127.0.0.1 only). */
+        private int port = 8081;
+        /** Context size in tokens. The system prompt plus one filename needs well under 2048. */
+        private int ctxSize = 2048;
+        /** Stop llama-server after this many idle seconds; 0 keeps it running once started. */
+        private int idleTimeoutSeconds = 600;
+        /** How long to wait for llama-server to load the model and report healthy. */
+        private int startupTimeoutSeconds = 120;
+        /** Extra command-line arguments appended to the llama-server invocation. */
+        private String extraArgs = "";
+    }
+
     private Retry retry = new Retry();
 
     @Data

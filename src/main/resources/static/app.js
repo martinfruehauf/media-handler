@@ -490,8 +490,27 @@ function applyConfig() {
   setVal('cfg-llm-wol-shutdown-cmd', config['llm.wol.shutdown-cmd']);
   toggleWolFields();
 
+  setVal('cfg-llm-local-server-binary', config['llm.local.server-binary']);
+  setVal('cfg-llm-local-model-path',    config['llm.local.model-path']);
+  setVal('cfg-llm-local-model-name',    config['llm.local.model-name']);
+  setVal('cfg-llm-local-threads',       config['llm.local.threads']);
+  setVal('cfg-llm-local-port',          config['llm.local.port']);
+  setVal('cfg-llm-local-idle-timeout',  config['llm.local.idle-timeout-seconds']);
+
   const provider = config['llm.provider'] || 'openai';
   selectProvider(provider, false);
+  selectLlmMode(config['llm.mode'] || 'local', false);
+}
+
+function selectLlmMode(mode, save) {
+  document.querySelectorAll('.provider-btn[data-llm-mode]').forEach(b => {
+    b.classList.toggle('active', b.dataset.llmMode === mode);
+  });
+  const local = mode === 'local';
+  document.getElementById('llm-local-fields').style.display  = local ? '' : 'none';
+  document.getElementById('llm-remote-fields').style.display = local ? 'none' : '';
+  document.getElementById('wol-card').style.display          = local ? 'none' : '';
+  if (save) config['llm.mode'] = mode;
 }
 
 function toggleDevSettings() {
@@ -586,7 +605,7 @@ async function testWolShutdown() {
 }
 
 function selectProvider(p, save) {
-  document.querySelectorAll('.provider-btn').forEach(b => {
+  document.querySelectorAll('.provider-btn[data-provider]').forEach(b => {
     b.classList.toggle('active', b.dataset.provider === p);
   });
   const isOpenAi = p !== 'anthropic';
@@ -613,6 +632,13 @@ async function saveSettings() {
     'target.folder.movies': getVal('cfg-target-folder-movies'),
     'target.folder.shows':  getVal('cfg-target-folder-shows'),
     'tmdb.api-key':   getVal('cfg-tmdb-api-key'),
+    'llm.mode':       config['llm.mode'] || 'local',
+    'llm.local.server-binary':        getVal('cfg-llm-local-server-binary'),
+    'llm.local.model-path':           getVal('cfg-llm-local-model-path'),
+    'llm.local.model-name':           getVal('cfg-llm-local-model-name'),
+    'llm.local.threads':              getVal('cfg-llm-local-threads'),
+    'llm.local.port':                 getVal('cfg-llm-local-port'),
+    'llm.local.idle-timeout-seconds': getVal('cfg-llm-local-idle-timeout'),
     'llm.provider':   config['llm.provider'] || 'openai',
     'llm.api-key':    getVal('cfg-llm-api-key'),
     'llm.base-url':   getVal('cfg-llm-base-url'),
@@ -805,6 +831,7 @@ async function checkGithubReachability() {
 
 // ── First-run setup wizard ────────────────────────────────────────────────────
 let suProvider = 'openai';
+let suLlmMode  = 'local';
 
 async function checkSetupNeeded() {
   try {
@@ -829,15 +856,24 @@ async function prefillSetupWizard() {
     fill('su-llm-url',   'llm.base-url');
     fill('su-llm-model', 'llm.model');
     if (cfg['llm.provider']) suSelectProvider(cfg['llm.provider']);
+    if (cfg['llm.mode'])     suSelectLlmMode(cfg['llm.mode']);
   } catch (e) { /* keep HTML defaults on error */ }
 }
 
 function suSelectProvider(p) {
   suProvider = p;
-  document.querySelectorAll('#setup-overlay .provider-btn').forEach(b => {
+  document.querySelectorAll('#setup-overlay .provider-btn[data-provider]').forEach(b => {
     b.classList.toggle('active', b.dataset.provider === p);
   });
   document.getElementById('su-llm-url-field').style.display = p !== 'anthropic' ? '' : 'none';
+}
+
+function suSelectLlmMode(mode) {
+  suLlmMode = mode;
+  document.querySelectorAll('#setup-overlay .provider-btn[data-llm-mode]').forEach(b => {
+    b.classList.toggle('active', b.dataset.llmMode === mode);
+  });
+  document.getElementById('su-llm-remote-fields').style.display = mode === 'remote' ? '' : 'none';
 }
 
 async function saveSetup() {
@@ -848,11 +884,11 @@ async function saveSetup() {
     showSetupError('Source folder, both target folders, and TMDB key are required.');
     return;
   }
-  if (!llmKey) {
+  if (suLlmMode === 'remote' && !llmKey) {
     showSetupError('LLM API key is required. Use "ollama" if running a local Ollama instance.');
     return;
   }
-  if (!llmModel) {
+  if (suLlmMode === 'remote' && !llmModel) {
     showSetupError('LLM model is required (e.g. qwen2.5:14b or gpt-4o).');
     return;
   }
@@ -867,6 +903,7 @@ async function saveSetup() {
     'target.folder.movies': movies,
     'target.folder.shows':  shows,
     'tmdb.api-key':         tmdb,
+    'llm.mode':             suLlmMode,
     'llm.provider':         suProvider,
     'llm.api-key':          llmKey,
     'llm.base-url':         getVal('su-llm-url') || 'http://localhost:11434',

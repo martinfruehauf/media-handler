@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.npc.mediahandler.config.AppConfigService;
 import com.npc.mediahandler.llm.DynamicChatClientProvider;
+import com.npc.mediahandler.llm.LocalLlmServerManager;
 
 import lombok.RequiredArgsConstructor;
 
@@ -27,6 +28,7 @@ public class ConfigController {
 
     private final AppConfigService configService;
     private final DynamicChatClientProvider chatClientProvider;
+    private final LocalLlmServerManager localServer;
 
     @GetMapping
     public Map<String, String> getConfig() {
@@ -38,12 +40,26 @@ public class ConfigController {
     }
 
     private static final Set<String> LLM_KEYS = Set.of(
+            AppConfigService.LLM_MODE,
             AppConfigService.LLM_PROVIDER, AppConfigService.LLM_API_KEY,
-            AppConfigService.LLM_BASE_URL, AppConfigService.LLM_MODEL
+            AppConfigService.LLM_BASE_URL, AppConfigService.LLM_MODEL,
+            AppConfigService.LLM_LOCAL_MODEL_NAME, AppConfigService.LLM_LOCAL_PORT
+    );
+
+    /** Settings baked into the llama-server command line — changing one requires a restart. */
+    private static final Set<String> LOCAL_SERVER_KEYS = Set.of(
+            AppConfigService.LLM_LOCAL_SERVER_BINARY, AppConfigService.LLM_LOCAL_MODEL_PATH,
+            AppConfigService.LLM_LOCAL_MODEL_NAME, AppConfigService.LLM_LOCAL_THREADS,
+            AppConfigService.LLM_LOCAL_PORT, AppConfigService.LLM_LOCAL_CTX_SIZE,
+            AppConfigService.LLM_LOCAL_EXTRA_ARGS
     );
 
     @PostMapping
     public void updateConfig(@RequestBody Map<String, String> updates) {
+        Set<String> changed = updates.entrySet().stream()
+                .filter(e -> e.getValue() != null && !e.getValue().equals(configService.get(e.getKey())))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
         updates.forEach((key, value) -> {
             if (value != null) {
                 configService.set(key, value);
@@ -51,6 +67,10 @@ public class ConfigController {
         });
         if (updates.keySet().stream().anyMatch(LLM_KEYS::contains)) {
             chatClientProvider.invalidate();
+        }
+        boolean switchedToRemote = changed.contains(AppConfigService.LLM_MODE) && !configService.isLocalLlm();
+        if (switchedToRemote || changed.stream().anyMatch(LOCAL_SERVER_KEYS::contains)) {
+            localServer.restart();
         }
     }
 

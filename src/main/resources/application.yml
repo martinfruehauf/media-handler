@@ -46,6 +46,18 @@ media:
   tmdb:
     api-key: YOUR_TMDB_BEARER_TOKEN
     base-url: https://api.themoviedb.org/3
+  llm:
+    mode: local            # local = llama-server in this container; remote = spring.ai.openai.* / Anthropic endpoint
+    local:
+      server-binary: /opt/llama.cpp/llama-server
+      model-path: /opt/mediahandler/models/qwen2.5-1.5b-instruct-q4_k_m.gguf
+      model-name: qwen2.5-1.5b-instruct
+      threads: 4                     # match the container's CPU cores
+      port: 8081                     # bound to 127.0.0.1 only
+      ctx-size: 2048
+      idle-timeout-seconds: 600      # stop llama-server after 10 min idle; 0 = keep running
+      startup-timeout-seconds: 120
+      extra-args: ""                 # appended to the llama-server command line
   retry:
     enabled: false         # set to true to automatically retry failed records
     interval-ms: 300000   # retry failed records every 5 minutes

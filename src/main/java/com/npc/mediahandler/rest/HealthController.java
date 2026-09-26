@@ -12,6 +12,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 import com.npc.mediahandler.config.AppConfigService;
+import com.npc.mediahandler.llm.LocalLlmServerManager;
 import com.npc.mediahandler.llm.WolService;
 
 import lombok.RequiredArgsConstructor;
@@ -25,6 +26,7 @@ public class HealthController {
 
     private final AppConfigService configService;
     private final WolService wolService;
+    private final LocalLlmServerManager localServer;
 
     @GetMapping
     public Map<String, Object> health() {
@@ -57,6 +59,8 @@ public class HealthController {
     }
 
     private Map<String, Object> checkLlm() {
+        if (configService.isLocalLlm()) return checkLocalLlm();
+
         WolService.WolState wolState = wolService.getState();
 
         if (wolState == WolService.WolState.WAKING) {
@@ -88,5 +92,18 @@ public class HealthController {
             }
             return Map.of("ok", false, "state", "err", "message", "Unreachable");
         }
+    }
+
+    private Map<String, Object> checkLocalLlm() {
+        String problem = localServer.checkInstallation();
+        if (problem != null) {
+            return Map.of("ok", false, "state", "err", "message", problem);
+        }
+        String message = localServer.getStatusMessage();
+        return switch (localServer.getState()) {
+            case STARTING -> Map.of("ok", false, "state", "warn", "message", message, "pollFast", true);
+            case FAILED   -> Map.of("ok", false, "state", "err", "message", message);
+            default       -> Map.of("ok", true, "state", "ok", "message", message);
+        };
     }
 }

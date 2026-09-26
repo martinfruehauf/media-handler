@@ -1,11 +1,14 @@
 package com.npc.mediahandler.llm;
 
+import java.util.Objects;
 import java.util.concurrent.Semaphore;
+import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
+import com.npc.mediahandler.config.AppConfigService;
 import com.npc.mediahandler.media.LlmResponseParser;
 import com.npc.mediahandler.media.MediaMetadata;
 
@@ -86,9 +89,13 @@ public class FilenameParserService {
             error: Input does not appear to be a movie or TV show filename.
             """;
 
+    private static final String LOCAL_UNAVAILABLE = "Local LLM unavailable: ";
+
     private final DynamicChatClientProvider chatClientProvider;
     private final LlmResponseParser responseParser;
     private final WolService wolService;
+    private final LocalLlmServerManager localServer;
+    private final AppConfigService configService;
 
     public MediaMetadata parse(String filename) {
         try {
@@ -98,8 +105,17 @@ public class FilenameParserService {
             Thread.currentThread().interrupt();
             return new MediaMetadata(null, null, null, null, null, "Interrupted while waiting for LLM");
         }
+        boolean local = configService.isLocalLlm();
         try {
-            wolService.beforeLlmRequest();
+            if (local) {
+                try {
+                    localServer.beforeLlmRequest();
+                } catch (IllegalStateException e) {
+                    return new MediaMetadata(null, null, null, null, null, LOCAL_UNAVAILABLE + e.getMessage());
+                }
+            } else {
+                wolService.beforeLlmRequest();
+            }
             log.info("→ LLM request: '{}'", filename);
             String response = chatClientProvider.getChatClient().prompt()
                     .system(SYSTEM_PROMPT)
@@ -107,13 +123,18 @@ public class FilenameParserService {
                     .call()
                     .content();
             String preview = response != null
-                    ? response.replaceAll("\\s+", " ").substring(0, Math.min(200, response.length()))
+                    ? StringUtils.left(response.replaceAll("\\s+", " "), 200)
                     : "null";
             log.info("← LLM response for '{}': {}", filename, preview);
-            return responseParser.parse(response);
+            MediaMetadata metadata = responseParser.parse(response);
+            return local ? groundInInput(metadata, filename) : metadata;
         } finally {
             llmSlot.release();
-            wolService.afterLlmRequest();
+            if (local) {
+                localServer.afterLlmRequest();
+            } else {
+                wolService.afterLlmRequest();
+            }
         }
     }
 
@@ -121,6 +142,8 @@ public class FilenameParserService {
         // Attempt 1: filename alone
         MediaMetadata result = parse(filename);
         if (isComplete(result)) return result;
+        // No point retrying with the folder name if the server itself could not start
+        if (result.isError() && result.error().startsWith(LOCAL_UNAVAILABLE)) return result;
 
         if (StringUtils.isNotBlank(folderName)) {
             // Attempt 2: folder name alone
@@ -140,6 +163,43 @@ public class FilenameParserService {
                 "TV show is missing season or episode — cannot rename without S/E");
         }
         return result;  // error or best effort movie
+    }
+
+    /**
+     * Small local models tend to fill in a plausible year, season or episode that isn't in the
+     * filename. Keep those values only if they literally appear in the input; otherwise blank them
+     * so the folder-name fallback and the "missing season or episode" check handle the file
+     * instead of a wrong rename.
+     */
+    static MediaMetadata groundInInput(MediaMetadata m, String input) {
+        if (m.isError()) return m;
+        String year = StringUtils.isNotBlank(m.year()) && input.contains(m.year().strip()) ? m.year() : "";
+        String season  = m.season();
+        String episode = m.episode();
+        if (m.isShow() && !hasEpisodeMarker(input, season, episode)) {
+            season  = null;
+            episode = null;
+        }
+        if (!Objects.equals(year, m.year()) || !Objects.equals(season, m.season())) {
+            log.info("Dropped values not found in '{}': year={}, season={}, episode={}",
+                    input, m.year(), m.season(), m.episode());
+        }
+        return new MediaMetadata(m.type(), m.name(), year, season, episode, null);
+    }
+
+    /** True if the input contains S{season}E{episode} (e.g. S03E07, s3.e7) or {season}x{episode} (e.g. 3x07). */
+    private static boolean hasEpisodeMarker(String input, String season, String episode) {
+        Integer s = markerNumber(season, "S");
+        Integer e = markerNumber(episode, "E");
+        if (s == null || e == null) return false;
+        Pattern marker = Pattern.compile(
+                "(?i)(?<![a-z0-9])(s0*" + s + "[ ._-]*e0*" + e + "|0*" + s + "x0*" + e + ")(?!\\d)");
+        return marker.matcher(input).find();
+    }
+
+    private static Integer markerNumber(String value, String prefix) {
+        String digits = StringUtils.removeStartIgnoreCase(StringUtils.strip(value), prefix);
+        return StringUtils.isNumeric(digits) && digits.length() <= 6 ? Integer.valueOf(digits) : null;
     }
 
     private boolean isComplete(MediaMetadata m) {
