@@ -12,6 +12,12 @@ spring:
   application:
     name: media-handler
 
+  web:
+    resources:
+      cache:
+        cachecontrol:
+          no-cache: true   # browsers must revalidate UI files, so an update is picked up without a hard refresh
+
   datasource:
     url: jdbc:h2:file:./data/mediahandler;AUTO_SERVER=TRUE
     driver-class-name: org.h2.Driver
