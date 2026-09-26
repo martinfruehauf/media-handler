@@ -44,10 +44,10 @@ public class MediaProperties {
     private long stabilityThresholdSeconds = 60;
 
     /**
-     * Files below this size (MB) that match a video extension are treated as sample/junk and deleted during
-     * source-folder cleanup.
+     * During source-folder cleanup, video files below this size (MB) are treated as extras/junk and deleted
+     * (episodes excepted). Seed for the {@code folder.cleanup.small-video-max-mb} setting.
      */
-    private long sampleVideoThresholdMb = 50;
+    private long cleanupSmallVideoMaxMb = 200;
 
     /** How often (milliseconds) to check for source files that are due for deletion in copy mode. */
     private long cleanupIntervalMs = 30 * 60 * 1000;

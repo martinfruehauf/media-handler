@@ -485,6 +485,7 @@ function applyConfig() {
   setVal('cfg-file-delete-original-after-hours', config['file.delete.original.after.hours'] || '0');
   toggleDeleteAfter();
   document.getElementById('cfg-folder-cleanup-enabled').checked = config['folder.cleanup.enabled'] !== 'false';
+  setVal('cfg-folder-cleanup-small-video-max-mb', config['folder.cleanup.small-video-max-mb'] || '200');
   document.getElementById('cfg-wiki-title-lookup').checked = config['wiki.title.lookup'] === 'true';
   document.getElementById('cfg-llm-wol-enabled').checked = config['llm.wol.enabled'] !== 'false';
   setVal('cfg-llm-wol-mac',          config['llm.wol.mac']);
@@ -651,6 +652,7 @@ async function saveSettings() {
     'file.copy.mode': document.getElementById('cfg-file-copy-mode').checked.toString(),
     'file.delete.original.after.hours': getVal('cfg-file-delete-original-after-hours') || '0',
     'folder.cleanup.enabled': document.getElementById('cfg-folder-cleanup-enabled').checked.toString(),
+    'folder.cleanup.small-video-max-mb': getVal('cfg-folder-cleanup-small-video-max-mb') || '200',
     'wiki.title.lookup': document.getElementById('cfg-wiki-title-lookup').checked.toString(),
     'llm.wol.enabled':      document.getElementById('cfg-llm-wol-enabled').checked.toString(),
     'llm.wol.mac':          getVal('cfg-llm-wol-mac'),

@@ -116,6 +116,7 @@ Configuration works in two layers:
 | `media.target-folder-shows` | *(none — set in wizard)* | Root folder shows are moved/copied into |
 | `media.ignored-folders` | `usenet` | Folders inside the source folder (relative, or absolute paths) that are never scanned, processed, renamed or deleted. Seeds the **Ignored Folders** setting |
 | `media.sample-max-mb` | `200` | Files named `*sample*` up to this size (MB) are skipped as release samples. Seeds the **Sample file limit** setting |
+| `media.cleanup-small-video-max-mb` | `200` | Folder cleanup deletes video files below this size (MB), except episodes. Seeds the cleanup small-video setting |
 | `media.file-extensions` | mkv mp4 avi m4v mov wmv | Extensions treated as media |
 | `media.poll-interval-ms` | `30000` | How often the source folder is scanned (ms) |
 | `media.stability-threshold-seconds` | `60` | Seconds a file size must be stable before processing |
@@ -201,7 +202,7 @@ Open `http://localhost:8080` after starting the service.
 
 | Card | Settings |
 |------|----------|
-| **Paths** | Source folder, target folders (movies / shows), ignored folders inside the source folder (comma-separated, default `usenet`), sample file limit in MB (default 200), overwrite existing files, copy mode, delete original after N hours, source folder cleanup |
+| **Paths** | Source folder, target folders (movies / shows), ignored folders inside the source folder (comma-separated, default `usenet`), sample file limit in MB (default 200), overwrite existing files, copy mode, delete original after N hours, source folder cleanup and its small-video limit in MB (default 200) |
 | **TMDB** | Bearer token |
 | **Title Resolution** | Wikipedia German→English translation (default: off) |
 | **LLM Provider** | Mode (Local / Remote). Local: binary, model path, model name, threads, port, idle timeout. Remote: provider, API key, base URL, model |
@@ -310,13 +311,15 @@ When **Copy instead of moving** is enabled, the original file is kept in the sou
 
 When a file is **moved** (not copied), the service can automatically clean up the subfolder it came from. This is enabled by default and can be toggled via **Delete source folder after move** in the Paths settings card.
 
-The cleanup runs immediately after a successful move:
+The cleanup runs immediately after a successful move. It covers the folder the file was in **and all of its subfolders** (e.g. `Sample/`, `Subs/`, `Proof/`):
 
-1. All non-video files (`.nfo`, `.jpg`, `.srt`, `.sfv`, etc.) are deleted silently.
-2. Video files smaller than **50 MB**, and sample files (see [Which files are processed](#which-files-are-processed)), are deleted. Each one is logged with its size as a `FOLDER_CLEANUP` step in the processing history.
-3. If the folder is now empty it is removed and recorded as `FOLDER_DELETED` in the processing history.
+1. If an archive (`.rar`, `.zip`, `.par2`, `.r00`, …) is anywhere in there, the download may still be extracting, so nothing is touched.
+2. All non-video files (`.nfo`, `.jpg`, `.srt`, `.sfv`, etc.) are deleted.
+3. Video files below the **Cleanup: delete video files below (MB)** setting (default 200 MB) are deleted, and so are sample files (see [Which files are processed](#which-files-are-processed)). There's one exception: a small file with an episode marker (`S01E03`, `1x03`) that isn't a sample is kept, because it's an unprocessed episode of a season pack. Each deletion is logged with its size as a `FOLDER_CLEANUP` step.
+4. Larger video files are kept, because they're still waiting to be processed.
+5. Every folder that is now empty is removed, deepest first. Empty parent folders are removed too, up to the source root (e.g. an outer `Release - by uploader/` wrapper). Each one is recorded as `FOLDER_DELETED`.
 
-The source root itself is never touched — only immediate subfolders the processed file came from.
+The source root itself is never removed, and ignored folders are never entered or deleted.
 
 ---
 

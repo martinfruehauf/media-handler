@@ -54,6 +54,7 @@ public class AppConfigService {
     public static final String FILE_COPY_MODE                  = "file.copy.mode";
     public static final String FILE_DELETE_ORIGINAL_AFTER_HOURS = "file.delete.original.after.hours";
     public static final String FOLDER_CLEANUP_ENABLED          = "folder.cleanup.enabled";
+    public static final String FOLDER_CLEANUP_SMALL_VIDEO_MAX_MB = "folder.cleanup.small-video-max-mb";
     public static final String WIKI_TITLE_LOOKUP               = "wiki.title.lookup";
 
     private final AppConfigRepository repository;
@@ -92,6 +93,7 @@ public class AppConfigService {
         setIfAbsent(FILE_COPY_MODE, "false");
         setIfAbsent(FILE_DELETE_ORIGINAL_AFTER_HOURS, "0");
         setIfAbsent(FOLDER_CLEANUP_ENABLED, "true");
+        setIfAbsent(FOLDER_CLEANUP_SMALL_VIDEO_MAX_MB, String.valueOf(properties.getCleanupSmallVideoMaxMb()));
         setIfAbsent(WIKI_TITLE_LOOKUP, "true");
     }
 

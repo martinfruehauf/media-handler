@@ -10,9 +10,7 @@ import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
-import java.util.Set;
 import java.util.stream.Stream;
 
 import org.springframework.context.event.EventListener;
@@ -50,6 +48,7 @@ public class FileProcessingService {
     private final WikipediaTitleService wikiService;
     private final IgnoredFolders ignoredFolders;
     private final SampleFiles sampleFiles;
+    private final SourceFolderCleanup sourceFolderCleanup;
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
@@ -226,7 +225,7 @@ public class FileProcessingService {
                 }
             } else {
                 // Move mode: clean up the source folder after the file is gone
-                cleanupSourceFolder(source, notes);
+                sourceFolderCleanup.cleanup(source, notes);
             }
 
             record.setProcessingNotes(toJson(notes));
@@ -391,98 +390,5 @@ public class FileProcessingService {
 
     private static String nvl(String s) {
         return s != null ? s : "?";
-    }
-
-    // ── Source-folder cleanup ─────────────────────────────────────────────────
-
-    /** Archive/compressed formats that indicate an active or pending download — never delete these or their folder. */
-    private static final Set<String> ARCHIVE_EXTENSIONS = Set.of(
-            "zip", "rar", "7z", "gz", "bz2", "xz", "tar",
-            "r00", "r01", "r02", "r03", "r04", "r05",
-            "001", "002", "003",
-            "nzb", "par", "par2"
-    );
-
-    private void cleanupSourceFolder(Path movedFile, List<ProcessingNote> notes) {
-        boolean enabled = Boolean.parseBoolean(
-                configService.getOrDefault(AppConfigService.FOLDER_CLEANUP_ENABLED, "true"));
-        if (!enabled) return;
-
-        Path folder = movedFile.getParent();
-        String sourceRoot = configService.getOrDefault(
-                AppConfigService.SOURCE_FOLDER, properties.getSourceFolder());
-
-        // Never attempt to clean up the source root itself
-        if (folder == null || folder.equals(Paths.get(sourceRoot))) return;
-
-        // List all remaining files once so we can inspect them before touching anything
-        List<Path> remaining;
-        try (Stream<Path> stream = Files.list(folder)) {
-            remaining = stream.filter(p -> !Files.isDirectory(p)).toList();
-        } catch (IOException e) {
-            log.warn("Could not list folder for cleanup '{}': {}", folder, e.getMessage());
-            return;
-        }
-
-        // If any archive file is present the folder may still be downloading — skip cleanup entirely
-        for (Path file : remaining) {
-            if (ARCHIVE_EXTENSIONS.contains(extension(file))) {
-                log.info("Skipping folder cleanup for '{}': archive file present ({})", folder, file.getFileName());
-                return;
-            }
-        }
-
-        // Delete leftover meta / small-video files
-        Set<String> videoExtensions = Set.copyOf(properties.getFileExtensions());
-        long sampleThresholdBytes = properties.getSampleVideoThresholdMb() * 1024 * 1024;
-        for (Path file : remaining) {
-            String ext = extension(file);
-            if (!videoExtensions.contains(ext)) {
-                // Non-video meta file — delete silently
-                try {
-                    Files.deleteIfExists(file);
-                    log.info("Deleted meta file during folder cleanup: {}", file);
-                } catch (IOException e) {
-                    log.warn("Could not delete meta file '{}': {}", file, e.getMessage());
-                }
-            } else {
-                try {
-                    long size = Files.size(file);
-                    if (size < sampleThresholdBytes || sampleFiles.isSample(file, size)) {
-                        Files.deleteIfExists(file);
-                        String sizeStr = formatSize(size);
-                        log.info("Deleted small video file during folder cleanup: {} ({})", file, sizeStr);
-                        notes.add(new ProcessingNote("FOLDER_CLEANUP",
-                                "deleted small video file \"%s\" (%s)".formatted(
-                                        file.getFileName(), sizeStr)));
-                    }
-                } catch (IOException e) {
-                    log.warn("Could not process file '{}': {}", file, e.getMessage());
-                }
-            }
-        }
-
-        // Attempt to remove the (now hopefully empty) folder
-        try {
-            Files.delete(folder);
-            log.info("Deleted source folder: {}", folder);
-            notes.add(new ProcessingNote("FOLDER_DELETED", folder.toString()));
-        } catch (IOException e) {
-            // Folder not empty or permission issue — not a fatal error
-            log.debug("Could not delete source folder '{}' (may not be empty): {}", folder, e.getMessage());
-        }
-    }
-
-    private static String extension(Path file) {
-        String name = file.getFileName().toString();
-        int dot = name.lastIndexOf('.');
-        return dot >= 0 ? name.substring(dot + 1).toLowerCase(Locale.ROOT) : "";
-    }
-
-    private static String formatSize(long bytes) {
-        if (bytes < 1024) return bytes + " B";
-        if (bytes < 1024 * 1024) return "%.1f KB".formatted(bytes / 1024.0);
-        if (bytes < 1024L * 1024 * 1024) return "%.1f MB".formatted(bytes / (1024.0 * 1024));
-        return "%.2f GB".formatted(bytes / (1024.0 * 1024 * 1024));
     }
 }
