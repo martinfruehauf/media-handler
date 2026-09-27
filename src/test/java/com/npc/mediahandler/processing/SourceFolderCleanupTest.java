@@ -11,6 +11,12 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Comparator;
+import java.util.Optional;
+import java.util.stream.Stream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,6 +37,8 @@ class SourceFolderCleanupTest {
 
     private final AppConfigService configService = mock(AppConfigService.class);
     private final MediaProperties properties = new MediaProperties();
+    private final MediaFileRepository repository = mock(MediaFileRepository.class);
+    private final ProcessingQueue queue = new ProcessingQueue();
     private final List<ProcessingNote> notes = new ArrayList<>();
     private SourceFolderCleanup cleanup;
 
@@ -41,8 +49,10 @@ class SourceFolderCleanupTest {
         when(configService.getOrDefault(AppConfigService.SOURCE_IGNORED_FOLDERS, "")).thenReturn("usenet");
         when(configService.getInt(eq(AppConfigService.FOLDER_CLEANUP_SMALL_VIDEO_MAX_MB), anyInt())).thenReturn(200);
         when(configService.getInt(eq(AppConfigService.SOURCE_SAMPLE_MAX_MB), anyInt())).thenReturn(200);
+        when(configService.getInt(eq(AppConfigService.FOLDER_CLEANUP_STALE_HOURS), anyInt())).thenReturn(6);
         cleanup = new SourceFolderCleanup(configService, properties,
-                new IgnoredFolders(configService, properties), new SampleFiles(configService));
+                new IgnoredFolders(configService, properties), new SampleFiles(configService),
+                repository, queue, new ProcessingGateService());
     }
 
     /** Creates a sparse file of the given size (no disk space used). */
@@ -103,6 +113,63 @@ class SourceFolderCleanupTest {
 
         assertThat(rootNfo).exists();
         assertThat(ignoredNfo).exists();
+    }
+
+    @Test
+    void keepsPartialDownloadsAndFilesWithOpenRecords() throws IOException {
+        Path partial = file("Movie/other.mkv.part", 100);
+        cleanup.cleanup(source.resolve("Movie/Movie.mkv"), notes);
+        assertThat(partial).exists();
+
+        Path failed = file("Film/Unbekannter.Film.mkv", 150 * MB);
+        when(repository.findTopBySourcePathOrderByIdDesc(failed.toString()))
+                .thenReturn(Optional.of(record(failed, MediaFileStatus.TMDB_FAILED)));
+        cleanup.cleanup(source.resolve("Film/Film.mkv"), notes);
+        assertThat(failed).exists();
+    }
+
+    @Test
+    void sweepCleansStaleFoldersMediaHandlerKnows() throws IOException {
+        Path known = file("Old.Release/Old.Release/Proof/proof.jpg", 1000);
+        Path unknown = file("Never.Seen/readme.nfo", 100);
+        Path fresh = file("Fresh.Release/movie.nfo", 100);
+        ageTree(source.resolve("Old.Release"), 7);
+        ageTree(source.resolve("Never.Seen"), 7);
+        when(repository.existsBySourcePathStartingWith(source.resolve("Old.Release") + "/")).thenReturn(true);
+        when(repository.existsBySourcePathStartingWith(source.resolve("Fresh.Release") + "/")).thenReturn(true);
+
+        cleanup.sweepStaleFolders();
+
+        assertThat(source.resolve("Old.Release")).doesNotExist();
+        assertThat(unknown).exists();   // no record: MediaHandler never saw it
+        assertThat(fresh).exists();     // changed less than 6 h ago
+        assertThat(known).doesNotExist();
+    }
+
+    @Test
+    void sweepLeavesFoldersWithUnprocessedVideosUntouched() throws IOException {
+        Path nfo = file("Show.S01/Show.S01E01/episode.nfo", 100);
+        Path episode = file("Show.S01/Show.S01E02/Show.S01E02.mkv", 700 * MB);
+        ageTree(source.resolve("Show.S01"), 7);
+        when(repository.existsBySourcePathStartingWith(source.resolve("Show.S01") + "/")).thenReturn(true);
+
+        cleanup.sweepStaleFolders();
+
+        assertThat(episode).exists();
+        assertThat(nfo).exists();
+    }
+
+    private static MediaFileRecord record(Path file, MediaFileStatus status) {
+        return MediaFileRecord.builder().sourcePath(file.toString()).status(status).build();
+    }
+
+    private static void ageTree(Path root, int hours) throws IOException {
+        FileTime old = FileTime.from(Instant.now().minus(Duration.ofHours(hours)));
+        try (Stream<Path> stream = Files.walk(root)) {
+            for (Path p : stream.sorted(Comparator.reverseOrder()).toList()) {
+                Files.setLastModifiedTime(p, old);
+            }
+        }
     }
 
     @Test

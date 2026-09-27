@@ -8,8 +8,8 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -94,6 +94,7 @@ public class SourceFilesController {
             ignoredFolders.walkFiles(sourceFolder).stream()
                     .filter(f -> isMediaFile(f.getFileName().toString()))
                     .filter(f -> !sampleFiles.isSample(f))
+                    .filter(f -> !fileProcessingService.isQueued(f.toString()))
                     .forEach(file -> {
                         var latest = repository.findTopBySourcePathOrderByIdDesc(file.toString());
                         // Skip files already being processed or successfully moved
@@ -121,7 +122,7 @@ public class SourceFilesController {
             return ResponseEntity.internalServerError().body(Map.of("queued", 0));
         }
 
-        CompletableFuture.runAsync(() -> toProcess.forEach(fileProcessingService::execute));
+        toProcess.forEach(fileProcessingService::submit);
         log.info("Rescan queued {} file(s) for processing", toProcess.size());
         return ResponseEntity.ok(Map.of("queued", toProcess.size()));
     }
@@ -142,12 +143,23 @@ public class SourceFilesController {
         if (!isMediaFile(to.getFileName().toString())) {
             return ResponseEntity.badRequest().body(Map.of("error", "New name must keep a supported media extension"));
         }
+        if (fileProcessingService.isQueued(from.toString())) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", "File is being processed right now"));
+        }
         try {
             Files.move(from, to);
         } catch (IOException e) {
             log.error("Rename failed: {} → {}", from, to, e);
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
+        // Close the old path's open record; the renamed file gets a new one
+        repository.findTopBySourcePathOrderByIdDesc(from.toString())
+                .filter(r -> r.getStatus() != MediaFileStatus.MOVED)
+                .ifPresent(r -> {
+                    r.setStatus(MediaFileStatus.SKIPPED);
+                    r.setErrorMessage("Renamed to " + to.getFileName());
+                    repository.save(r);
+                });
         MediaFileRecord record = repository.save(MediaFileRecord.builder()
                 .originalFilename(to.getFileName().toString())
                 .sourcePath(to.toString())
@@ -155,7 +167,7 @@ public class SourceFilesController {
                 .createdAt(Instant.now())
                 .retryCount(0)
                 .build());
-        CompletableFuture.runAsync(() -> fileProcessingService.execute(record));
+        fileProcessingService.submit(record);
         log.info("Renamed '{}' → '{}', queued for processing", from.getFileName(), to.getFileName());
         return ResponseEntity.ok(Map.of("newPath", to.toString(), "newName", to.getFileName().toString()));
     }

@@ -223,6 +223,10 @@
           <label>Cleanup: delete video files below (MB) <span style="font-weight:400;color:var(--muted)">(in the moved file's folder and its subfolders; episodes are kept)</span></label>
           <input id="cfg-folder-cleanup-small-video-max-mb" type="number" min="0" step="1" placeholder="200" style="width:120px;" />
         </div>
+        <div class="field">
+          <label>Cleanup: sweep leftover folders unchanged for (hours) <span style="font-weight:400;color:var(--muted)">(checked every 30 min; only folders MediaHandler has processed files from)</span></label>
+          <input id="cfg-folder-cleanup-stale-hours" type="number" min="1" step="1" placeholder="6" style="width:120px;" />
+        </div>
       </div>
     </div>
 

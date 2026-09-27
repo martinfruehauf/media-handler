@@ -49,6 +49,12 @@ public class MediaProperties {
      */
     private long cleanupSmallVideoMaxMb = 200;
 
+    /**
+     * The periodic sweep only cleans a top-level source folder when nothing in it has changed for
+     * this many hours. Seed for the {@code folder.cleanup.stale-hours} setting.
+     */
+    private long cleanupStaleHours = 6;
+
     /** How often (milliseconds) to check for source files that are due for deletion in copy mode. */
     private long cleanupIntervalMs = 30 * 60 * 1000;
 

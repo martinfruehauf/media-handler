@@ -56,11 +56,15 @@ source-folder/
   [FileMonitorService]  — polls every 30 s, waits for file size to stabilise
         │
         ▼ FileReadyEvent
+  [ProcessingQueue]     — one worker; scan, retry and UI actions all queue here
+        │
+        ▼
   [FileProcessingService]
-        ├── FilenameParserService  — LLM call → MediaMetadata
-        │     └── folder-name fallback if filename alone is ambiguous
-        ├── TmdbService           — REST call to TMDB (first attempt)
-        │     └── [optional] WikipediaTitleService
+        ├── TitleResolver         — see "How a name is found"
+        │     ├── FilenameParserService  — LLM call → MediaMetadata
+        │     ├── TmdbService            — TMDB search
+        │     ├── WikipediaTitleService  — German → English title (on by default)
+        │     └── TitleVariants          — title words from file/folder names, exact match only
         │           ├── search de.wikipedia.org for German title
         │           ├── follow interlanguage link → English title
         │           └── retry TMDB with English title
@@ -76,7 +80,7 @@ target-folder-shows/
     Futurama (1999) - S10E01.mkv
 ```
 
-Every processing attempt is persisted in an H2 database. Each step is recorded as a **processing note** visible in the detail panel. Failed attempts are retried on a configurable schedule.
+Every processing attempt is persisted in an H2 database. Each step is recorded as a **processing note** visible in the detail panel. Failed records can be retried automatically on a schedule, but this is **off by default** (`media.retry.enabled`); otherwise use **↻ Reprocess** in the UI.
 
 ### Which files are processed
 
@@ -88,6 +92,21 @@ A file in the source folder is treated as a movie or episode when all of these h
 4. It is **not a sample**: a file whose name contains `sample` (any case) and that is no larger than the **Sample file limit** (default 200 MB) is skipped and logged. The size check means a real movie with "sample" in its title is still processed. It only runs once the size is stable, so a movie that is still downloading is never mistaken for a sample.
 
 A file whose latest record is `SKIPPED` is not picked up again after a restart. Use **↻ Re-include** to process it.
+
+### How a name is found
+
+Cheapest sources first. A miss moves on to the next source instead of failing the file, and every step appears in the **Workflow** of the detail panel with ✓ or ✗:
+
+1. **LLM, filename.** The filename is sent to the LLM. A usable result is a movie with a name, or a show with name, season and episode. In local mode, a year, season or episode that doesn't literally appear in the input is dropped (small models invent them), and the response format is fixed by a grammar.
+2. **TMDB.** Movie or TV search with that name (and year). The first result is TMDB's best match and is used.
+3. **Wikipedia.** If TMDB found nothing and **Title Resolution** is on (the default), the name is searched on de.wikipedia.org, and TMDB is searched again with the English article title.
+4. **Title variants.** The words before the episode marker, year or first technical tag of the filename (`jajunge-south.park.s23e02…` → `jajunge south park`), then the same with one or two words dropped at the front or end (`south park`, `jajunge south`, …). These are guesses, so a TMDB hit only counts if its title matches the variant **exactly** (ignoring case, accents and punctuation).
+5. **Folder names.** The folders above the file (up to two; generic ones like `Sample`, `Subs`, `Proof`, `CD1` are skipped), nearest first: first their title variants (exact match only), then an LLM parse of the folder name → TMDB → Wikipedia. A season/episode missing from a folder name (e.g. a season pack folder) is taken from the filename.
+6. **Folder + filename** combined in one LLM request → TMDB → Wikipedia.
+
+If nothing matches: `TMDB_FAILED` when a title was extracted, `LLM_FAILED` otherwise. If the LLM can't be reached at all, the file fails right away with `LLM_FAILED` instead of trying the other sources.
+
+Names are always the English TMDB titles (`language=en-US`). For a film without an English title, TMDB usually returns its original title (see the foreign-language note in `CLAUDE.md`).
 
 ---
 
@@ -117,6 +136,8 @@ Configuration works in two layers:
 | `media.ignored-folders` | `usenet` | Folders inside the source folder (relative, or absolute paths) that are never scanned, processed, renamed or deleted. Seeds the **Ignored Folders** setting |
 | `media.sample-max-mb` | `200` | Files named `*sample*` up to this size (MB) are skipped as release samples. Seeds the **Sample file limit** setting |
 | `media.cleanup-small-video-max-mb` | `200` | Folder cleanup deletes video files below this size (MB), except episodes. Seeds the cleanup small-video setting |
+| `media.cleanup-stale-hours` | `6` | The periodic sweep only cleans folders unchanged for this long. Seeds the sweep setting |
+| `media.cleanup-interval-ms` | `1800000` | How often copy-mode originals are deleted and leftover folders are swept (ms) |
 | `media.file-extensions` | mkv mp4 avi m4v mov wmv | Extensions treated as media |
 | `media.poll-interval-ms` | `30000` | How often the source folder is scanned (ms) |
 | `media.stability-threshold-seconds` | `60` | Seconds a file size must be stable before processing |
@@ -196,15 +217,15 @@ Open `http://localhost:8080` after starting the service.
   - **✕ Exclude** — mark a failed file as skipped so it won't be retried
   - **✏ Rename** — rename the file in place and re-queue it
 - Processing history table with status filters, configurable page size (1, 2, 5, 10, 20, 50, 100, 1000, All), and pagination.
-- Click any row to open the **detail panel**, which shows paths, error messages, timestamps, and a **Processing Steps** section listing every step the pipeline took (LLM parse, TMDB attempts, Wikipedia lookup, move/copy, scheduled deletion).
+- Click any row to open the **detail panel**: the result first (target path or error), then the **Workflow** of the last attempt: every step in the order it ran (LLM parses, TMDB searches, Wikipedia, title variants, move/copy, cleanup), each marked ✓ succeeded, ✗ failed or • info. Paths and timestamps follow below.
 
 ### Settings tab
 
 | Card | Settings |
 |------|----------|
-| **Paths** | Source folder, target folders (movies / shows), ignored folders inside the source folder (comma-separated, default `usenet`), sample file limit in MB (default 200), overwrite existing files, copy mode, delete original after N hours, source folder cleanup and its small-video limit in MB (default 200) |
+| **Paths** | Source folder, target folders (movies / shows), ignored folders inside the source folder (comma-separated, default `usenet`), sample file limit in MB (default 200), overwrite existing files, copy mode, delete original after N hours, source folder cleanup, its small-video limit in MB (default 200) and the leftover-folder sweep age in hours (default 6) |
 | **TMDB** | Bearer token |
-| **Title Resolution** | Wikipedia German→English translation (default: off) |
+| **Title Resolution** | Wikipedia German→English translation (default: on) |
 | **LLM Provider** | Mode (Local / Remote). Local: binary, model path, model name, threads, port, idle timeout. Remote: provider, API key, base URL, model |
 | **Wake on LAN** | Enable/disable WOL, MAC address, optional shutdown command (remote mode only) |
 | **Display** | Date format |
@@ -272,7 +293,7 @@ Only used in **remote** LLM mode. The service can automatically wake the LLM mac
 
 1. A file arrives in the source folder and is queued for processing.
 2. Before the LLM call the service checks if the LLM endpoint is reachable.
-3. If not, it runs `wol <mac>` and polls the endpoint every 5 seconds for up to 2 minutes.
+3. If not, it sends a magic packet (UDP broadcast from Java, no `wol` binary needed) and polls the endpoint every 5 seconds for up to 4 minutes. Processing waits during that time.
 4. Once reachable, the LLM call proceeds normally.
 5. After the last LLM call, a 5-minute idle timer starts. When it fires (and no new requests have come in), the shutdown command is executed via SSH.
 
@@ -292,12 +313,12 @@ Hover over the indicator for a detailed status message.
 
 | Status | Meaning |
 |--------|---------|
-| `PENDING` | Queued or first attempt in progress |
+| `PENDING` | Queued or in progress. A PENDING record left over from before a restart is closed at startup (`SKIPPED` with the reason) unless its file is still waiting, in which case processing continues with it |
 | `LLM_FAILED` | LLM could not parse the filename, or could not be reached (no automatic back-off — the retry scheduler picks it up) |
 | `TMDB_FAILED` | TMDB returned no results (after optional Wikipedia retry) |
 | `MOVE_FAILED` | File system move/copy failed |
 | `MOVED` | Successfully processed — file is at target path |
-| `SKIPPED` | Target file already exists and overwrite is disabled, file is a sample, or manually excluded — use **↻ Re-include** to re-queue |
+| `SKIPPED` | Target file already exists and overwrite is disabled, file is a sample, file no longer exists, renamed in the UI, or manually excluded — use **↻ Re-include** to re-queue |
 
 ---
 
@@ -311,27 +332,36 @@ When **Copy instead of moving** is enabled, the original file is kept in the sou
 
 When a file is **moved** (not copied), the service can automatically clean up the subfolder it came from. This is enabled by default and can be toggled via **Delete source folder after move** in the Paths settings card.
 
-The cleanup runs immediately after a successful move. It covers the folder the file was in **and all of its subfolders** (e.g. `Sample/`, `Subs/`, `Proof/`):
+The cleanup runs immediately after a successful move, and again periodically for folders that were left behind (see below). It covers the folder **and all of its subfolders** (e.g. `Sample/`, `Subs/`, `Proof/`):
 
-1. If an archive (`.rar`, `.zip`, `.par2`, `.r00`, …) is anywhere in there, the download may still be extracting, so nothing is touched.
+1. If an archive or partial download (`.rar`, `.zip`, `.par2`, `.r00`, `.part`, `.crdownload`, `.!qb`, `.tmp`, …) is anywhere in there, the download may still be running, so nothing is touched.
 2. All non-video files (`.nfo`, `.jpg`, `.srt`, `.sfv`, etc.) are deleted.
 3. Video files below the **Cleanup: delete video files below (MB)** setting (default 200 MB) are deleted, and so are sample files (see [Which files are processed](#which-files-are-processed)). There's one exception: a small file with an episode marker (`S01E03`, `1x03`) that isn't a sample is kept, because it's an unprocessed episode of a season pack. Each deletion is logged with its size as a `FOLDER_CLEANUP` step.
-4. Larger video files are kept, because they're still waiting to be processed.
+4. Larger video files are kept, because they're still waiting to be processed. So is any video file that is queued or has an open (`PENDING` or failed) record.
 5. Every folder that is now empty is removed, deepest first. Empty parent folders are removed too, up to the source root (e.g. an outer `Release - by uploader/` wrapper). Each one is recorded as `FOLDER_DELETED`.
 
 The source root itself is never removed, and ignored folders are never entered or deleted.
+
+**Periodic sweep.** Every 30 minutes (`media.cleanup-interval-ms`) each top-level folder of the source root is checked. It is cleaned with the rules above, and removed once empty, only if all of these hold:
+
+- MediaHandler has a record for at least one file in it (it never touches a download it hasn't seen);
+- nothing in it has changed for **Cleanup: sweep leftover folders unchanged for (hours)** (default 6);
+- no video file in it is still waiting: every video in it would be deleted by the rules above;
+- no archive or partial download is present.
+
+This cleans up folders left by older versions, by a cleanup that was skipped while an archive was still there, or by files removed outside MediaHandler.
 
 ---
 
 ## Wikipedia title translation
 
-Enabled per-file via the **Title Resolution** setting (default: off). When a TMDB lookup fails, the service:
+Controlled by the **Title Resolution** setting (default: on). When a TMDB lookup fails, the service:
 
 1. Searches `de.wikipedia.org` for the parsed title.
 2. Follows the interlanguage link to the English Wikipedia article title.
 3. Retries TMDB with the English title.
 
-All steps appear in the **Processing Steps** section of the detail panel.
+All steps appear in the **Workflow** of the detail panel.
 
 ---
 
@@ -345,6 +375,15 @@ curl http://<container-ip>:8080/actuator/logfile
 # last ~100 KB only
 curl -H 'Range: bytes=-100000' http://<container-ip>:8080/actuator/logfile
 ```
+
+---
+
+## Runtime behaviour & limits
+
+- **One file at a time, in a queue.** The folder scan, automatic retry and all UI actions (**↻ Reprocess**, **Re-include**, **Rename**) put files into one queue that a single worker processes in order. A file that is already queued or being processed is not queued again (the UI says so), so it can never be processed twice at once. The scheduled jobs themselves only queue work, so a slow LLM call no longer delays scanning or cleanup. Parsing with the local LLM takes roughly 15–25 s per call (the first call after a model start longer), up to 4 calls per file.
+- **Tracking is in memory.** After a restart every file still in the source folder is picked up again. Open records are continued, not duplicated. Copy-mode originals are recognised and not processed again.
+- **Settings are stored in the database.** Values from `application.yml` are only used for settings that don't exist yet, so changing a default there does not change an existing install.
+- **Files that still need attention are never deleted.** No cleanup removes a video file that is queued or has a `PENDING`/`*_FAILED` record (e.g. a film TMDB couldn't match).
 
 ---
 

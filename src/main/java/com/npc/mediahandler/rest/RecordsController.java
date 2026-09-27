@@ -4,9 +4,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -55,13 +55,9 @@ public class RecordsController {
                 MediaFileStatus.LLM_FAILED, MediaFileStatus.TMDB_FAILED, MediaFileStatus.MOVE_FAILED);
         var toRetry = repository.findLatestByStatus(failedStatuses).stream()
                 .filter(r -> Files.exists(Path.of(r.getSourcePath())))
+                .filter(r -> !fileProcessingService.isQueued(r.getSourcePath()))
                 .toList();
-        toRetry.forEach(r -> {
-            r.setStatus(MediaFileStatus.PENDING);
-            r.setErrorMessage(null);
-            repository.save(r);
-        });
-        CompletableFuture.runAsync(() -> toRetry.forEach(fileProcessingService::execute));
+        toRetry.forEach(this::queue);
         return ResponseEntity.ok(Map.of("queued", toRetry.size()));
     }
 
@@ -77,26 +73,33 @@ public class RecordsController {
 
     @PostMapping("/{id}/unskip")
     public ResponseEntity<Void> unskip(@PathVariable Long id) {
-        return repository.findById(id).map(r -> {
-            r.setStatus(MediaFileStatus.PENDING);
-            r.setErrorMessage(null);
-            repository.save(r);
-            CompletableFuture.runAsync(() -> fileProcessingService.execute(r));
-            return ResponseEntity.noContent().<Void>build();
-        }).orElse(ResponseEntity.notFound().build());
+        return repository.findById(id)
+                .map(this::queueOrConflict)
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @PostMapping("/{id}/retry")
     public ResponseEntity<Void> retry(@PathVariable Long id) {
         return repository.findById(id)
                 .filter(r -> Files.exists(Path.of(r.getSourcePath())))
-                .map(r -> {
-                    r.setStatus(MediaFileStatus.PENDING);
-                    r.setErrorMessage(null);
-                    repository.save(r);
-                    CompletableFuture.runAsync(() -> fileProcessingService.execute(r));
-                    return ResponseEntity.noContent().<Void>build();
-                }).orElse(ResponseEntity.notFound().build());
+                .map(this::queueOrConflict)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    /** 409 if the file is already queued or being processed — its record is left as it is. */
+    private ResponseEntity<Void> queueOrConflict(MediaFileRecord r) {
+        if (fileProcessingService.isQueued(r.getSourcePath())) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        }
+        queue(r);
+        return ResponseEntity.noContent().build();
+    }
+
+    private void queue(MediaFileRecord r) {
+        r.setStatus(MediaFileStatus.PENDING);
+        r.setErrorMessage(null);
+        repository.save(r);
+        fileProcessingService.submit(r);
     }
 
     @DeleteMapping

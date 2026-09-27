@@ -50,9 +50,10 @@ public class RetryService {
                 log.warn("Retry skipped — source file gone: {}", source);
                 continue;
             }
+            if (fileProcessingService.isQueued(record.getSourcePath())) continue;
             log.info("Retrying {} (attempt {}/{}) for: {}",
                     record.getStatus(), record.getRetryCount() + 1, maxAttempts, record.getOriginalFilename());
-            fileProcessingService.execute(record);
+            fileProcessingService.submit(record);
         }
     }
 }

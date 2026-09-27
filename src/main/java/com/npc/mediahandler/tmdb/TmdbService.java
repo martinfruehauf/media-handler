@@ -42,7 +42,8 @@ public class TmdbService {
         String resultYear = StringUtils.length(result.releaseDate()) >= 4
                 ? result.releaseDate().substring(0, 4)
                 : year;
-        TmdbResult r = new TmdbResult(result.title(), resultYear, String.valueOf(result.id()));
+        TmdbResult r = new TmdbResult(result.title(), resultYear, String.valueOf(result.id()),
+                result.originalTitle(), result.originalLanguage());
         log.info("← TMDB movie found: '{}' ({})", r.name(), r.year());
         return r;
     }
@@ -67,7 +68,8 @@ public class TmdbService {
         String resultYear = StringUtils.length(result.firstAirDate()) >= 4
                 ? result.firstAirDate().substring(0, 4)
                 : year;
-        TmdbResult r = new TmdbResult(result.name(), resultYear, String.valueOf(result.id()));
+        TmdbResult r = new TmdbResult(result.name(), resultYear, String.valueOf(result.id()),
+                result.originalName(), result.originalLanguage());
         log.info("← TMDB show found: '{}' ({})", r.name(), r.year());
         return r;
     }
@@ -85,6 +87,8 @@ public class TmdbService {
         record MovieResult(
                 long id,
                 String title,
+                @JsonProperty("original_title") String originalTitle,
+                @JsonProperty("original_language") String originalLanguage,
                 @JsonProperty("release_date") String releaseDate
         ) {}
     }
@@ -93,6 +97,8 @@ public class TmdbService {
         record ShowResult(
                 long id,
                 String name,
+                @JsonProperty("original_name") String originalName,
+                @JsonProperty("original_language") String originalLanguage,
                 @JsonProperty("first_air_date") String firstAirDate
         ) {}
     }

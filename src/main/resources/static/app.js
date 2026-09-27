@@ -168,7 +168,8 @@ async function skipFile(recordId) {
 
 async function unskipFile(recordId) {
   try {
-    await fetch(`/api/records/${recordId}/unskip`, { method: 'POST' });
+    const res = await fetch(`/api/records/${recordId}/unskip`, { method: 'POST' });
+    if (res.status === 409) { toast('File is already being processed', 'error'); return; }
     toast('File re-included for processing', 'success');
     loadSourceFiles();
   } catch (e) {
@@ -178,7 +179,8 @@ async function unskipFile(recordId) {
 
 async function retryFile(recordId) {
   try {
-    await fetch(`/api/records/${recordId}/retry`, { method: 'POST' });
+    const res = await fetch(`/api/records/${recordId}/retry`, { method: 'POST' });
+    if (res.status === 409) { toast('File is already being processed', 'error'); return; }
     toast('File queued for reprocessing', 'success');
     setTimeout(() => { loadSourceFiles(); loadRecords(); }, 800);
   } catch (e) {
@@ -356,49 +358,78 @@ function renderDetail(id) {
   const panel = document.getElementById('detail-panel');
   panel.classList.add('open');
 
+  const notes = r.processingNotes ? JSON.parse(r.processingNotes) : [];
+  const row = (label, value, cls = 'detail-value') =>
+    `<span class="detail-label">${label}</span><span class="${cls}">${value}</span>`;
+
   panel.innerHTML = `
     <button class="close-btn" onclick="toggleDetail(${r.id})">✕</button>
     <h3>Record #${r.id}</h3>
+    <div class="detail-title">${esc(r.originalFilename)}</div>
+
+    <div class="detail-result detail-result--${resultKind(r.status)}">
+      ${badge(r.status)}
+      <span>${esc(resultText(r))}</span>
+    </div>
+
+    ${notes.length ? `
+    <div class="detail-section">
+      Workflow <span class="detail-section-sub">attempt ${r.retryCount}${r.lastAttemptAt ? ' · ' + fmtDateFull(r.lastAttemptAt) : ''}</span>
+    </div>
+    <ol class="workflow">
+      ${notes.map(n => {
+        const outcome = noteOutcome(n);
+        return `<li class="workflow-step workflow-step--${outcome}">
+          <span class="workflow-icon">${outcome === 'ok' ? '✓' : outcome === 'fail' ? '✗' : '•'}</span>
+          <span class="workflow-name">${esc(stepLabel(n.step))}</span>
+          <span class="workflow-detail">${esc(n.detail)}</span>
+        </li>`;
+      }).join('')}
+    </ol>` : ''}
+
+    <div class="detail-section">Details</div>
     <div class="detail-grid">
-      <span class="detail-label">Filename</span>
-      <span class="detail-value">${esc(r.originalFilename)}</span>
-
-      <span class="detail-label">Status</span>
-      <span class="detail-value">${badge(r.status)}</span>
-
-      <span class="detail-label">Attempts</span>
-      <span class="detail-value">${r.retryCount}</span>
-
-      <span class="detail-label">Source path</span>
-      <span class="detail-value">${esc(r.sourcePath || '—')}</span>
-
-      ${r.targetPath ? `
-      <span class="detail-label">Target path</span>
-      <span class="detail-value">${esc(r.targetPath)}</span>` : ''}
-
-      ${r.errorMessage ? `
-      <span class="detail-label">Error</span>
-      <span class="detail-error">${esc(r.errorMessage)}</span>` : ''}
-
-      <span class="detail-label">Created</span>
-      <span class="detail-value">${fmtDateFull(r.createdAt)}</span>
-
-      ${r.processedAt ? `
-      <span class="detail-label">Processed</span>
-      <span class="detail-value">${fmtDateFull(r.processedAt)}</span>` : ''}
-
-      ${r.sourceDeleteAfter ? `
-      <span class="detail-label">Original deletion</span>
-      <span class="detail-value">${fmtDateFull(r.sourceDeleteAfter)}</span>` : ''}
-
-      ${r.processingNotes ? `
-      <span class="detail-label" style="grid-column:1/-1; margin-top:8px; font-size:11px; text-transform:uppercase; letter-spacing:.05em;">Processing Steps</span>
-      ${JSON.parse(r.processingNotes).map(n => `
-        <span class="detail-label">${esc(n.step)}</span>
-        <span class="detail-value" style="font-family:monospace;font-size:12px;">${esc(n.detail)}</span>
-      `).join('')}` : ''}
+      ${row('Source path', esc(r.sourcePath || '—'))}
+      ${r.targetPath ? row('Target path', esc(r.targetPath)) : ''}
+      ${row('Created', fmtDateFull(r.createdAt))}
+      ${r.processedAt ? row('Processed', fmtDateFull(r.processedAt)) : ''}
+      ${r.sourceDeleteAfter ? row('Original deletion', fmtDateFull(r.sourceDeleteAfter)) : ''}
     </div>
   `;
+}
+
+function resultKind(status) {
+  if (status === 'MOVED') return 'ok';
+  if (status === 'SKIPPED' || status === 'PENDING') return 'neutral';
+  return 'fail';
+}
+
+function resultText(r) {
+  if (r.status === 'MOVED') return r.targetPath ? `→ ${r.targetPath}` : 'Done';
+  if (r.status === 'PENDING') return 'Queued or in progress';
+  return r.errorMessage || '';
+}
+
+const STEP_LABELS = {
+  LLM: 'LLM parse', TMDB: 'TMDB search', TMDB_1: 'TMDB search', TMDB_2: 'TMDB search',
+  WIKI: 'Wikipedia', VARIANTS: 'Title variants', LLM_FOLDER: 'Folder hint',
+  MOVED: 'Moved', COPIED: 'Copied', SKIPPED: 'Skipped', MOVE_FAILED: 'Move failed',
+  TMDB_ERROR: 'TMDB error', ERROR: 'Error', PATH_RECOVERY: 'Path recovery',
+  FOLDER_CLEANUP: 'Cleanup', FOLDER_DELETED: 'Folder removed',
+  DELETE_SCHEDULED: 'Original deletion', COPY_KEPT: 'Original kept',
+};
+
+function stepLabel(step) {
+  return STEP_LABELS[step] || step;
+}
+
+/** Notes from older versions have no outcome — infer it from the text. */
+function noteOutcome(n) {
+  if (n.outcome) return n.outcome;
+  const d = (n.detail || '').toLowerCase();
+  if (n.step === 'MOVE_FAILED' || /not found|parse failed|no result|still not/.test(d)) return 'fail';
+  if (['MOVED', 'COPIED'].includes(n.step) || d.startsWith('found') || n.step === 'LLM') return 'ok';
+  return 'info';
 }
 
 // ── Pipeline control ─────────────────────────────────────────────────────────
@@ -486,6 +517,7 @@ function applyConfig() {
   toggleDeleteAfter();
   document.getElementById('cfg-folder-cleanup-enabled').checked = config['folder.cleanup.enabled'] !== 'false';
   setVal('cfg-folder-cleanup-small-video-max-mb', config['folder.cleanup.small-video-max-mb'] || '200');
+  setVal('cfg-folder-cleanup-stale-hours', config['folder.cleanup.stale-hours'] || '6');
   document.getElementById('cfg-wiki-title-lookup').checked = config['wiki.title.lookup'] === 'true';
   document.getElementById('cfg-llm-wol-enabled').checked = config['llm.wol.enabled'] !== 'false';
   setVal('cfg-llm-wol-mac',          config['llm.wol.mac']);
@@ -653,6 +685,7 @@ async function saveSettings() {
     'file.delete.original.after.hours': getVal('cfg-file-delete-original-after-hours') || '0',
     'folder.cleanup.enabled': document.getElementById('cfg-folder-cleanup-enabled').checked.toString(),
     'folder.cleanup.small-video-max-mb': getVal('cfg-folder-cleanup-small-video-max-mb') || '200',
+    'folder.cleanup.stale-hours': getVal('cfg-folder-cleanup-stale-hours') || '6',
     'wiki.title.lookup': document.getElementById('cfg-wiki-title-lookup').checked.toString(),
     'llm.wol.enabled':      document.getElementById('cfg-llm-wol-enabled').checked.toString(),
     'llm.wol.mac':          getVal('cfg-llm-wol-mac'),

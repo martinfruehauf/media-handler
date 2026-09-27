@@ -64,7 +64,8 @@ media:
     - mov
     - wmv
   cleanup-small-video-max-mb: 200   # folder cleanup deletes video files below this size (except episodes; editable in Settings)
-  cleanup-interval-ms: 1800000   # how often to check for copy-mode source files due for deletion (default: 30 minutes)
+  cleanup-stale-hours: 6            # periodic sweep cleans leftover folders unchanged for this long (editable in Settings)
+  cleanup-interval-ms: 1800000   # how often copy-mode originals are deleted and leftover folders are swept (default: 30 minutes)
   poll-interval-ms: 30000
   stability-threshold-seconds: 60
   tmdb:

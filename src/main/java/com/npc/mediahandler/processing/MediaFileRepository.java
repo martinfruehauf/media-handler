@@ -38,6 +38,11 @@ public interface MediaFileRepository extends JpaRepository<MediaFileRecord, Long
             """)
     List<MediaFileRecord> findLatestByStatus(@Param("statuses") List<MediaFileStatus> statuses);
 
+    List<MediaFileRecord> findByStatus(MediaFileStatus status);
+
+    /** True if any record's source path starts with the given prefix (i.e. lies inside that folder). */
+    boolean existsBySourcePathStartingWith(String prefix);
+
     /** Records whose source file is due for deletion. */
     List<MediaFileRecord> findBySourceDeleteAfterBefore(Instant cutoff);
 }

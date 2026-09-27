@@ -6,7 +6,6 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -19,17 +18,9 @@ import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.npc.mediahandler.config.AppConfigService;
-
-
-import com.npc.mediahandler.config.MediaProperties;
-import com.npc.mediahandler.llm.FilenameParserService;
-import com.npc.mediahandler.media.MediaMetadata;
 import com.npc.mediahandler.monitor.FileReadyEvent;
 import com.npc.mediahandler.monitor.IgnoredFolders;
 import com.npc.mediahandler.monitor.SampleFiles;
-import com.npc.mediahandler.tmdb.TmdbResult;
-import com.npc.mediahandler.tmdb.TmdbService;
-import com.npc.mediahandler.wiki.WikipediaTitleService;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -39,177 +30,150 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class FileProcessingService {
 
-    private final FilenameParserService filenameParserService;
-    private final TmdbService tmdbService;
+    private final TitleResolver titleResolver;
+    private final ProcessingQueue queue;
     private final FileRenameService fileRenameService;
     private final MediaFileRepository repository;
     private final AppConfigService configService;
-    private final MediaProperties properties;
-    private final WikipediaTitleService wikiService;
     private final IgnoredFolders ignoredFolders;
     private final SampleFiles sampleFiles;
     private final SourceFolderCleanup sourceFolderCleanup;
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
+    /** Called by the folder monitor; the file is processed on the {@link ProcessingQueue} worker. */
     @EventListener
     public void onFileReady(FileReadyEvent event) {
         Path source = event.getFile();
+        queue.submit(source.toString(), () -> processReadyFile(source));
+    }
+
+    /**
+     * Queues an existing record for (re)processing. Returns false if its file is already queued or
+     * being processed — the caller should then leave the record as it is.
+     */
+    public boolean submit(MediaFileRecord record) {
+        Long id = record.getId();
+        return queue.submit(record.getSourcePath(), () -> repository.findById(id).ifPresent(this::execute));
+    }
+
+    public boolean isQueued(String sourcePath) {
+        return queue.isActive(sourcePath);
+    }
+
+    private void processReadyFile(Path source) {
         String rawFilename = source.getFileName().toString();
         String originalFilename = rawFilename.contains("\uFFFD")
                 ? decodeFilenameOrElse(source, rawFilename)
                 : rawFilename;
         // The monitor re-publishes every file after a restart. Continue the file's open record
         // instead of adding a duplicate; SKIPPED stays skipped until the user re-includes it.
-        Optional<MediaFileRecord> latest = repository.findTopBySourcePathOrderByIdDesc(source.toString())
-                .filter(r -> r.getStatus() != MediaFileStatus.MOVED);
+        Optional<MediaFileRecord> latest = repository.findTopBySourcePathOrderByIdDesc(source.toString());
         if (latest.isPresent() && latest.get().getStatus() == MediaFileStatus.SKIPPED) {
             log.info("File was skipped before ({}), not processing again: {}",
                     latest.get().getErrorMessage(), source);
             return;
         }
-        MediaFileRecord record = latest.orElseGet(() -> repository.save(MediaFileRecord.builder()
-                .originalFilename(originalFilename)
-                .sourcePath(source.toString())
-                .status(MediaFileStatus.PENDING)
-                .createdAt(Instant.now())
-                .retryCount(0)
-                .build()));
+        if (latest.isPresent() && latest.get().getStatus() == MediaFileStatus.MOVED
+                && isCopiedOriginal(source, latest.get())) {
+            log.debug("Original of an already copied file, not processing again: {}", source);
+            return;
+        }
+        MediaFileRecord record = latest.filter(r -> r.getStatus() != MediaFileStatus.MOVED)
+                .orElseGet(() -> repository.save(MediaFileRecord.builder()
+                        .originalFilename(originalFilename)
+                        .sourcePath(source.toString())
+                        .status(MediaFileStatus.PENDING)
+                        .createdAt(Instant.now())
+                        .retryCount(0)
+                        .build()));
         execute(record);
     }
 
     /**
-     * Runs the full pipeline for a record. Safe to call from the retry service.
-     * Increments retryCount and persists status after every step.
+     * A MOVED record whose source still exists was processed in copy mode — unless the file was
+     * replaced afterwards (e.g. downloaded again), which gives it a newer modification time.
      */
-    public void execute(MediaFileRecord record) {
+    private static boolean isCopiedOriginal(Path source, MediaFileRecord moved) {
+        try {
+            return moved.getProcessedAt() != null
+                    && !Files.getLastModifiedTime(source).toInstant().isAfter(moved.getProcessedAt());
+        } catch (IOException e) {
+            return true;
+        }
+    }
+
+    /**
+     * Runs the full pipeline for a record on the calling thread. Only the {@link ProcessingQueue}
+     * worker calls this; everything else goes through {@link #submit}. Increments retryCount and
+     * always leaves the record in a final status.
+     */
+    void execute(MediaFileRecord record) {
         record.setRetryCount(record.getRetryCount() + 1);
         record.setLastAttemptAt(Instant.now());
+        record.setStatus(MediaFileStatus.PENDING);
         repository.save(record);
 
         List<ProcessingNote> notes = new ArrayList<>();
-
-        Path source;
+        // Status to report if something unexpected throws, updated as the pipeline advances
+        MediaFileStatus failStatus = MediaFileStatus.LLM_FAILED;
         try {
-            source = Path.of(record.getSourcePath());
-        } catch (java.nio.file.InvalidPathException e) {
-            source = recoverLegacyPath(record, notes);
-            if (source == null) return;
-        }
-        if (ignoredFolders.isIgnored(source)) {
-            // e.g. an old record retried after its folder was added to the ignore list
-            log.info("Source is in an ignored folder, leaving it untouched: {}", source);
-            record.setStatus(MediaFileStatus.SKIPPED);
-            record.setErrorMessage("In ignored folder");
-            repository.save(record);
-            return;
-        }
-        if (!Files.exists(source)) {
-            log.warn("Source file no longer exists, skipping: {}", source);
-            return;
-        }
-        if (sampleFiles.isSample(source)) {
-            log.info("Source is a sample file, leaving it untouched: {}", source);
-            record.setStatus(MediaFileStatus.SKIPPED);
-            record.setErrorMessage("Sample file (name contains 'sample', ≤ %d MB)".formatted(sampleFiles.maxMb()));
-            repository.save(record);
-            return;
-        }
-
-        // Step 1 — LLM filename parse (with folder-name fallback)
-        String sourceRoot = configService.getOrDefault(
-            AppConfigService.SOURCE_FOLDER, properties.getSourceFolder());
-        Path parent = source.getParent();
-        String folderHint = (parent != null && !parent.equals(Paths.get(sourceRoot)))
-            ? parent.getFileName().toString()
-            : null;
-
-        if (folderHint != null) {
-            notes.add(new ProcessingNote("LLM_FOLDER", "folder hint used: \"" + folderHint + "\""));
-        }
-
-        MediaMetadata metadata = filenameParserService.parseWithFolderFallback(
-            record.getOriginalFilename(), folderHint);
-
-        if (metadata.isError()) {
-            log.warn("LLM parse failed for '{}': {}", record.getOriginalFilename(), metadata.error());
-            notes.add(new ProcessingNote("LLM", "parse failed: " + metadata.error()));
-            record.setStatus(MediaFileStatus.LLM_FAILED);
-            record.setErrorMessage("LLM: " + metadata.error());
-            record.setProcessingNotes(toJson(notes));
-            repository.save(record);
-            return;
-        }
-
-        String seInfo = metadata.isMovie() ? "" : ", %s%s".formatted(
-                nvl(metadata.season()), nvl(metadata.episode()));
-        notes.add(new ProcessingNote("LLM",
-                "filename=\"%s\" → name=%s, type=%s%s".formatted(
-                        record.getOriginalFilename(), metadata.name(), metadata.type(), seInfo)));
-
-        // Step 2a — TMDB (first attempt, original name)
-        TmdbResult tmdbResult = searchTmdb(metadata, notes);
-
-        if (tmdbResult != null) {
-            notes.add(new ProcessingNote("TMDB_1", "found: id=%s, name=\"%s\"".formatted(
-                    tmdbResult.tmdbId(), tmdbResult.name())));
-        } else {
-            notes.add(new ProcessingNote("TMDB_1", "not found for \"" + metadata.name() + "\""));
-
-            // Step 2b — Wikipedia title translation (if enabled)
-            Optional<String> enTitle = wikiService.findEnglishTitle(metadata.name());
-
-            if (enTitle.isPresent()) {
-                notes.add(new ProcessingNote("WIKI",
-                        "de lookup → en=\"" + enTitle.get() + "\""));
-
-                MediaMetadata metadataEn = new MediaMetadata(
-                        metadata.type(), enTitle.get(), metadata.year(),
-                        metadata.season(), metadata.episode(), metadata.error());
-                tmdbResult = searchTmdb(metadataEn, notes);
-
-                if (tmdbResult != null) {
-                    notes.add(new ProcessingNote("TMDB_2",
-                            "found after wiki: id=%s, name=\"%s\"".formatted(
-                                    tmdbResult.tmdbId(), tmdbResult.name())));
-                } else {
-                    notes.add(new ProcessingNote("TMDB_2",
-                            "still not found for \"" + enTitle.get() + "\""));
-                }
-            } else {
-                notes.add(new ProcessingNote("WIKI",
-                        wikiService.isEnabled() ? "no result" : "lookup disabled"));
+            Path source;
+            try {
+                source = Path.of(record.getSourcePath());
+            } catch (java.nio.file.InvalidPathException e) {
+                source = recoverLegacyPath(record, notes);
+                if (source == null) return;
             }
-
-            if (tmdbResult == null) {
-                String msg = "TMDB: no results for '%s' (%s)".formatted(metadata.name(), metadata.year());
-                log.warn(msg);
-                record.setStatus(MediaFileStatus.TMDB_FAILED);
-                record.setErrorMessage(msg);
-                record.setProcessingNotes(toJson(notes));
-                repository.save(record);
+            if (ignoredFolders.isIgnored(source)) {
+                // e.g. an old record retried after its folder was added to the ignore list
+                log.info("Source is in an ignored folder, leaving it untouched: {}", source);
+                finish(record, notes, MediaFileStatus.SKIPPED, "In ignored folder");
                 return;
             }
-        }
+            if (!Files.exists(source)) {
+                log.warn("Source file no longer exists, skipping: {}", source);
+                finish(record, notes, MediaFileStatus.SKIPPED, "Source file no longer exists");
+                return;
+            }
+            if (sampleFiles.isSample(source)) {
+                log.info("Source is a sample file, leaving it untouched: {}", source);
+                finish(record, notes, MediaFileStatus.SKIPPED,
+                        "Sample file (name contains 'sample', ≤ %d MB)".formatted(sampleFiles.maxMb()));
+                return;
+            }
 
-        // Step 3 — Copy or move
+            // Steps 1 + 2 — find the title (LLM, TMDB, Wikipedia, name variants, folder names)
+            TitleResolver.Resolution resolution = titleResolver.resolve(record.getOriginalFilename(), source, notes);
+            if (!resolution.isFound()) {
+                log.warn("No title found for '{}': {}", record.getOriginalFilename(), resolution.error());
+                finish(record, notes, resolution.failStatus(), resolution.error());
+                return;
+            }
+
+            // Step 3 — Copy or move
+            failStatus = MediaFileStatus.MOVE_FAILED;
+            move(record, source, resolution, notes);
+        } catch (RuntimeException e) {
+            log.error("Unexpected error processing '{}': {}", record.getOriginalFilename(), e.getMessage(), e);
+            notes.add(ProcessingNote.fail("ERROR", "unexpected error: " + e));
+            finish(record, notes, failStatus, "Unexpected error: " + e.getMessage());
+        }
+    }
+
+    private void move(MediaFileRecord record, Path source, TitleResolver.Resolution resolution,
+            List<ProcessingNote> notes) {
         boolean copyMode = Boolean.parseBoolean(
                 configService.getOrDefault(AppConfigService.FILE_COPY_MODE, "false"));
         try {
-            Optional<Path> target = fileRenameService.process(source, metadata, tmdbResult);
+            Optional<Path> target = fileRenameService.process(source, resolution.metadata(), resolution.tmdb());
             if (target.isEmpty()) {
-                notes.add(new ProcessingNote("SKIPPED", "file already exists at target and overwrite is disabled"));
-                record.setStatus(MediaFileStatus.SKIPPED);
-                record.setErrorMessage("File already exists at target and overwrite is disabled");
-                record.setProcessingNotes(toJson(notes));
-                repository.save(record);
+                notes.add(ProcessingNote.fail("SKIPPED", "file already exists at target and overwrite is disabled"));
+                finish(record, notes, MediaFileStatus.SKIPPED, "File already exists at target and overwrite is disabled");
                 return;
             }
-            String action = copyMode ? "COPIED" : "MOVED";
-            notes.add(new ProcessingNote(action, target.get().toString()));
-            record.setStatus(MediaFileStatus.MOVED);
+            notes.add(ProcessingNote.ok(copyMode ? "COPIED" : "MOVED", target.get().toString()));
             record.setTargetPath(target.get().toString());
-            record.setErrorMessage(null);
             record.setProcessedAt(Instant.now());
 
             if (copyMode) {
@@ -227,18 +191,20 @@ public class FileProcessingService {
                 // Move mode: clean up the source folder after the file is gone
                 sourceFolderCleanup.cleanup(source, notes);
             }
-
-            record.setProcessingNotes(toJson(notes));
-            repository.save(record);
+            finish(record, notes, MediaFileStatus.MOVED, null);
             log.info("Successfully processed '{}' → {}", record.getOriginalFilename(), target.get());
         } catch (IOException e) {
             log.error("Move failed for '{}': {}", record.getOriginalFilename(), e.getMessage());
-            notes.add(new ProcessingNote("MOVE_FAILED", e.getMessage()));
-            record.setStatus(MediaFileStatus.MOVE_FAILED);
-            record.setErrorMessage("Move failed: " + e.getMessage());
-            record.setProcessingNotes(toJson(notes));
-            repository.save(record);
+            notes.add(ProcessingNote.fail("MOVE_FAILED", e.getMessage()));
+            finish(record, notes, MediaFileStatus.MOVE_FAILED, "Move failed: " + e.getMessage());
         }
+    }
+
+    private void finish(MediaFileRecord record, List<ProcessingNote> notes, MediaFileStatus status, String error) {
+        record.setStatus(status);
+        record.setErrorMessage(error);
+        record.setProcessingNotes(toJson(notes));
+        repository.save(record);
     }
 
     // ── Legacy-encoded filename recovery ─────────────────────────────────────
@@ -357,19 +323,6 @@ public class FileProcessingService {
         return out.toByteArray();
     }
 
-    /** Returns null when nothing was found or TMDB could not be reached (the error is added to the notes). */
-    private TmdbResult searchTmdb(MediaMetadata metadata, List<ProcessingNote> notes) {
-        try {
-            return metadata.isMovie()
-                    ? tmdbService.searchMovie(metadata.name(), metadata.year())
-                    : tmdbService.searchShow(metadata.name(), metadata.year());
-        } catch (RuntimeException e) {
-            log.warn("TMDB request failed for '{}': {}", metadata.name(), e.getMessage());
-            notes.add(new ProcessingNote("TMDB_ERROR", String.valueOf(e.getMessage())));
-            return null;
-        }
-    }
-
     private String toJson(List<ProcessingNote> notes) {
         try {
             return MAPPER.writeValueAsString(notes);
@@ -388,7 +341,4 @@ public class FileProcessingService {
         }
     }
 
-    private static String nvl(String s) {
-        return s != null ? s : "?";
-    }
 }

@@ -1,12 +1,13 @@
 package com.npc.mediahandler.llm;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Semaphore;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.exception.ExceptionUtils;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
 import com.npc.mediahandler.config.AppConfigService;
@@ -30,6 +31,7 @@ public class FilenameParserService {
             Rules:
             - Remove the file extension
             - Remove technical tags (resolution, codec, audio, source, release group, etc.)
+            - A release group can also come FIRST, joined to the title with a hyphen (e.g. "grp-the.title.s01e02"); it is not part of the title
             - Replace dots and underscores used as spaces with actual spaces
             - Only include the year if you are confident it is the release year (4-digit number between 1888 and current year)
             - Detect whether the file is a movie or a TV show episode (look for patterns like S01E03, 1x03, etc.)
@@ -76,6 +78,14 @@ public class FilenameParserService {
             year: 2019
             season: S01
             episode: E04
+
+            Input:  fgt-the.office.s02e05.720p.mkv
+            Output:
+            type: show
+            name: The Office
+            year:
+            season: S02
+            episode: E05
 
             Input:  Folder: The.Mandalorian.2019.S01E04 | File: xmshg13.mov
             Output:
@@ -148,34 +158,19 @@ public class FilenameParserService {
         }
     }
 
-    public MediaMetadata parseWithFolderFallback(String filename, @Nullable String folderName) {
-        // Attempt 1: filename alone
-        MediaMetadata result = parse(filename);
-        if (isComplete(result)) return result;
-        // No point retrying with the folder name if the LLM itself could not be reached
-        if (result.isError()
-                && (result.error().startsWith(LOCAL_UNAVAILABLE) || result.error().startsWith(REQUEST_FAILED))) {
-            return result;
-        }
+    /** True if the LLM could not be reached or started — retrying with other input is pointless. */
+    public static boolean isUnavailable(MediaMetadata m) {
+        return m.isError() && (m.error().startsWith(LOCAL_UNAVAILABLE) || m.error().startsWith(REQUEST_FAILED));
+    }
 
-        if (StringUtils.isNotBlank(folderName)) {
-            // Attempt 2: folder name alone
-            result = parse(folderName);
-            if (isComplete(result)) return result;
-
-            // Attempt 3: combined — LLM sees both
-            result = parse("Folder: " + folderName + " | File: " + filename);
-            if (isComplete(result)) return result;
-        }
-
-        // If still a show with missing S/E, return explicit error
-        if (!result.isError() && result.isShow()
-                && (StringUtils.isBlank(result.season()) || StringUtils.isBlank(result.episode()))) {
-            return new MediaMetadata(result.type(), result.name(), result.year(),
-                result.season(), result.episode(),
-                "TV show is missing season or episode — cannot rename without S/E");
-        }
-        return result;  // error or best effort movie
+    /** A movie with a name, or a show with name, season and episode. */
+    public static boolean isComplete(MediaMetadata m) {
+        if (m == null || m.isError()) return false;
+        if (m.isMovie()) return StringUtils.isNotBlank(m.name());
+        if (m.isShow()) return StringUtils.isNotBlank(m.name())
+            && StringUtils.isNotBlank(m.season())
+            && StringUtils.isNotBlank(m.episode());
+        return false;
     }
 
     /**
@@ -193,9 +188,11 @@ public class FilenameParserService {
             season  = null;
             episode = null;
         }
-        if (!Objects.equals(year, m.year()) || !Objects.equals(season, m.season())) {
-            log.info("Dropped values not found in '{}': year={}, season={}, episode={}",
-                    input, m.year(), m.season(), m.episode());
+        List<String> dropped = new ArrayList<>();
+        if (!Objects.equals(year, StringUtils.defaultString(m.year()))) dropped.add("year=" + m.year());
+        if (!Objects.equals(season, m.season())) dropped.add("season/episode=" + m.season() + m.episode());
+        if (!dropped.isEmpty()) {
+            log.info("Dropped values not found in '{}': {}", input, String.join(", ", dropped));
         }
         return new MediaMetadata(m.type(), m.name(), year, season, episode, null);
     }
@@ -213,14 +210,5 @@ public class FilenameParserService {
     private static Integer markerNumber(String value, String prefix) {
         String digits = StringUtils.removeStartIgnoreCase(StringUtils.strip(value), prefix);
         return StringUtils.isNumeric(digits) && digits.length() <= 6 ? Integer.valueOf(digits) : null;
-    }
-
-    private boolean isComplete(MediaMetadata m) {
-        if (m == null || m.isError()) return false;
-        if (m.isMovie()) return StringUtils.isNotBlank(m.name());
-        if (m.isShow()) return StringUtils.isNotBlank(m.name())
-            && StringUtils.isNotBlank(m.season())
-            && StringUtils.isNotBlank(m.episode());
-        return false;
     }
 }

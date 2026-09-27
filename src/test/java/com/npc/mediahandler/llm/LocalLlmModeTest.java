@@ -151,9 +151,10 @@ class LocalLlmModeTest {
     void missingModelFailsTheParseInsteadOfThrowing() {
         config.put(LLM_LOCAL_MODEL_PATH, dir.resolve("missing.gguf").toString());
 
-        MediaMetadata result = parser.parseWithFolderFallback("Some.Movie.2005.1080p.mkv", "Some.Movie.2005");
+        MediaMetadata result = parser.parse("Some.Movie.2005.1080p.mkv");
 
         assertThat(result.isError()).isTrue();
+        assertThat(FilenameParserService.isUnavailable(result)).isTrue();
         assertThat(result.error()).startsWith("Local LLM unavailable: Model file not found");
         assertThat(manager.getState()).isEqualTo(LocalLlmServerManager.State.FAILED);
     }

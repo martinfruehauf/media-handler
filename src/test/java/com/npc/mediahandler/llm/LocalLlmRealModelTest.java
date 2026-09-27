@@ -67,6 +67,7 @@ class LocalLlmRealModelTest {
             "Futurama.S10E01.GERMAN.DL.1080p.WEB.h264-WvF.mkv                                                  | show  | Futurama                                |      | S10 | E01",
             "Der.Schuh.des.Manitu.2001.German.1080p.BluRay.x264-DETAiLS.mkv                                    | movie | Der Schuh des Manitu                    | 2001 | -   | -",
             "Babylon.Berlin.S04E12.GERMAN.1080p.WEB.x264-WAYNE.mkv                                             | show  | Babylon Berlin                          |      | S04 | E12",
+            "jajunge-south.park.s23e02.1080p.mkv                                                               | show  | South Park                              |      | S23 | E02",
     })
     void parsesFilename(String filename, String type, String name, String year, String season, String episode) {
         MediaMetadata m = parser.parse(filename);
