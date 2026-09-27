@@ -55,9 +55,13 @@ hundreds of misleading "cannot find symbol" errors.
      `VARIANTS`, `TMDB_ERROR`, `MOVED`/`COPIED`, `SKIPPED`, `MOVE_FAILED`, `FOLDER_CLEANUP`,
      `FOLDER_DELETED`, `DELETE_SCHEDULED`, `COPY_KEPT`, `PATH_RECOVERY`, `ERROR`. Older records
      contain `TMDB_1`, `TMDB_2`, `LLM_FOLDER` and no outcome — the UI infers it (`noteOutcome`).
-6. **Move/copy** — `FileRenameService`: `Movies/Name (Year).ext` or
+6. **Move/copy** — `FileRenameService`: `Movies/Name (Year)/Name (Year).ext`
+   (`target.movies.own-folder`, default true; false → `Movies/Name (Year).ext`) or
    `Shows/Name (Year)/Season NN/Name (Year) - SxxEyy.ext`, name/year from TMDB, S/E from the LLM or
-   filename. Target exists and `file.overwrite` off → SKIPPED.
+   filename. `/` and `\` in titles become `-`; everything else (incl. `:`) is kept — the library
+   itself is inconsistent there ("Star Wars: Episode III…" vs "Dune - Part Two"). Target exists and
+   `file.overwrite` off → SKIPPED. The library also has manually named folders (e.g. German
+   "Adams Äpfel (2005)"); an English TMDB title creates a separate folder next to such a one.
 7. **Cleanup** — `SourceFolderCleanup`: after a move (moved file's folder recursively, then empty
    parents up to the source root) and `sweepStaleFolders()` every `media.cleanup-interval-ms`
    (top-level source folders with a record inside, unchanged for `folder.cleanup.stale-hours`,

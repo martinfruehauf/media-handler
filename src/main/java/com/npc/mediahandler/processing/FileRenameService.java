@@ -33,24 +33,30 @@ public class FileRenameService {
         String ext = FilenameUtils.getExtension(source.getFileName().toString());
         Path targetFile;
 
+        // A "/" in a title (e.g. "Face/Off") would otherwise become an extra folder level
+        String title = "%s (%s)".formatted(tmdbResult.name().replace('/', '-').replace('\\', '-'), tmdbResult.year());
+
         if (metadata.isMovie()) {
             Path targetFolder = Paths.get(configService.getOrDefault(
                     AppConfigService.TARGET_FOLDER_MOVIES, properties.getTargetFolderMovies()));
-            targetFile = targetFolder.resolve(
-                    "%s (%s).%s".formatted(tmdbResult.name(), tmdbResult.year(), ext));
+            boolean ownFolder = Boolean.parseBoolean(configService.getOrDefault(
+                    AppConfigService.TARGET_MOVIES_OWN_FOLDER, String.valueOf(properties.isMoviesInOwnFolder())));
+            if (ownFolder) {
+                targetFolder = targetFolder.resolve(title);
+                Files.createDirectories(targetFolder);
+            }
+            targetFile = targetFolder.resolve("%s.%s".formatted(title, ext));
         } else {
             Path targetFolder = Paths.get(configService.getOrDefault(
                     AppConfigService.TARGET_FOLDER_SHOWS, properties.getTargetFolderShows()));
             String seasonPadded = StringUtils.leftPad(
                     StringUtils.removeStartIgnoreCase(metadata.season(), "S"), 2, '0');
             Path seasonPath = targetFolder
-                    .resolve("%s (%s)".formatted(tmdbResult.name(), tmdbResult.year()))
+                    .resolve(title)
                     .resolve("Season " + seasonPadded);
             Files.createDirectories(seasonPath);
             targetFile = seasonPath.resolve(
-                    "%s (%s) - %s%s.%s".formatted(
-                            tmdbResult.name(), tmdbResult.year(),
-                            metadata.season(), metadata.episode(), ext));
+                    "%s - %s%s.%s".formatted(title, metadata.season(), metadata.episode(), ext));
         }
 
         if (Files.exists(targetFile)) {

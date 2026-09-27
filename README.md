@@ -73,7 +73,8 @@ source-folder/
         │
         ▼
 target-folder-movies/
-  Some Movie (2005).mkv
+  Some Movie (2005)/
+    Some Movie (2005).mkv
 
 target-folder-shows/
   Futurama (1999)/Season 10/
@@ -114,8 +115,10 @@ Names are always the English TMDB titles (`language=en-US`). For a film without 
 
 | Type  | Target path |
 |-------|-------------|
-| Movie | `target-folder-movies/Name (Year).ext` |
+| Movie | `target-folder-movies/Name (Year)/Name (Year).ext` (default), or `target-folder-movies/Name (Year).ext` with **Put each movie in its own folder** off |
 | Show  | `target-folder-shows/Name (Year)/Season NN/Name (Year) - SxxExx.ext` |
+
+Name and year come from TMDB (English title). A `/` in a title (e.g. "Face/Off") becomes `-` so it can't create an extra folder level; other characters such as `:` are kept.
 
 ---
 
@@ -133,6 +136,7 @@ Configuration works in two layers:
 | `media.source-folder` | *(none — set in wizard)* | Folder to watch for new media files |
 | `media.target-folder-movies` | *(none — set in wizard)* | Root folder movies are moved/copied into |
 | `media.target-folder-shows` | *(none — set in wizard)* | Root folder shows are moved/copied into |
+| `media.movies-in-own-folder` | `true` | Each movie in its own `Name (Year)/` folder. Seeds the **Put each movie in its own folder** setting |
 | `media.ignored-folders` | `usenet` | Folders inside the source folder (relative, or absolute paths) that are never scanned, processed, renamed or deleted. Seeds the **Ignored Folders** setting |
 | `media.sample-max-mb` | `200` | Files named `*sample*` up to this size (MB) are skipped as release samples. Seeds the **Sample file limit** setting |
 | `media.cleanup-small-video-max-mb` | `200` | Folder cleanup deletes video files below this size (MB), except episodes. Seeds the cleanup small-video setting |
@@ -223,7 +227,7 @@ Open `http://localhost:8080` after starting the service.
 
 | Card | Settings |
 |------|----------|
-| **Paths** | Source folder, target folders (movies / shows), ignored folders inside the source folder (comma-separated, default `usenet`), sample file limit in MB (default 200), overwrite existing files, copy mode, delete original after N hours, source folder cleanup, its small-video limit in MB (default 200) and the leftover-folder sweep age in hours (default 6) |
+| **Paths** | Source folder, target folders (movies / shows), movie in its own folder (default on), ignored folders inside the source folder (comma-separated, default `usenet`), sample file limit in MB (default 200), overwrite existing files, copy mode, delete original after N hours, source folder cleanup, its small-video limit in MB (default 200) and the leftover-folder sweep age in hours (default 6) |
 | **TMDB** | Bearer token |
 | **Title Resolution** | Wikipedia German→English translation (default: on) |
 | **LLM Provider** | Mode (Local / Remote). Local: binary, model path, model name, threads, port, idle timeout. Remote: provider, API key, base URL, model |

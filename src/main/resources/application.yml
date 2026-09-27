@@ -53,6 +53,7 @@ media:
   source-folder: /mnt/nas/temp
   target-folder-movies: /mnt/nas/movies
   target-folder-shows: /mnt/nas/shows
+  movies-in-own-folder: true   # Movies/Name (Year)/Name (Year).mkv; false = Movies/Name (Year).mkv (editable in Settings)
   ignored-folders:       # inside the source folder; never scanned, renamed or deleted (editable in Settings)
     - usenet
   sample-max-mb: 200   # video files named "*sample*" up to this size are skipped, never processed (editable in Settings)

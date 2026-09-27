@@ -511,6 +511,7 @@ function applyConfig() {
   setVal('cfg-llm-api-key',   config['llm.api-key']);
   setVal('cfg-llm-base-url',  config['llm.base-url']);
   setVal('cfg-llm-model',     config['llm.model']);
+  document.getElementById('cfg-target-movies-own-folder').checked = config['target.movies.own-folder'] !== 'false';
   document.getElementById('cfg-file-overwrite').checked = config['file.overwrite'] === 'true';
   document.getElementById('cfg-file-copy-mode').checked = config['file.copy.mode'] === 'true';
   setVal('cfg-file-delete-original-after-hours', config['file.delete.original.after.hours'] || '0');
@@ -680,6 +681,7 @@ async function saveSettings() {
     'llm.api-key':    getVal('cfg-llm-api-key'),
     'llm.base-url':   getVal('cfg-llm-base-url'),
     'llm.model':      getVal('cfg-llm-model'),
+    'target.movies.own-folder': document.getElementById('cfg-target-movies-own-folder').checked.toString(),
     'file.overwrite': document.getElementById('cfg-file-overwrite').checked.toString(),
     'file.copy.mode': document.getElementById('cfg-file-copy-mode').checked.toString(),
     'file.delete.original.after.hours': getVal('cfg-file-delete-original-after-hours') || '0',

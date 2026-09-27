@@ -20,6 +20,12 @@ public class MediaProperties {
     private String targetFolderShows;
 
     /**
+     * true: {@code Movies/Name (Year)/Name (Year).ext}; false: {@code Movies/Name (Year).ext}.
+     * Seed for the {@code target.movies.own-folder} setting.
+     */
+    private boolean moviesInOwnFolder = true;
+
+    /**
      * Folders inside the source folder that are never scanned, processed or deleted
      * (relative to the source folder, or absolute). Seed for the {@code source.ignored.folders} setting.
      */
